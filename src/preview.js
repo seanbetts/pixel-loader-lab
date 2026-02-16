@@ -1,8 +1,8 @@
 import './styles.css';
-import loaderBorderLightUrl from './assets/loader.gif?url';
-import loaderBorderDarkUrl from './assets/loader-dark.gif?url';
-import loaderSolidLightUrl from './assets/loader-solid.gif?url';
-import loaderSolidDarkUrl from './assets/loader-solid-dark.gif?url';
+import loaderBorderLightTransitionUrl from './assets/loader-transition.gif?url';
+import loaderBorderDarkTransitionUrl from './assets/loader-transition-dark.gif?url';
+import loaderSolidLightTransitionUrl from './assets/loader-solid-transition.gif?url';
+import loaderSolidDarkTransitionUrl from './assets/loader-solid-transition-dark.gif?url';
 import iconSvgUrl from './assets/logo.svg?url';
 
 const DEFAULTS = {
@@ -10,6 +10,7 @@ const DEFAULTS = {
   cell: '8',
   frames: '8',
   ms: '120',
+  transition: 6,
 };
 
 const withCacheBust = (url) => {
@@ -18,7 +19,7 @@ const withCacheBust = (url) => {
   return `${url}${separator}t=${Date.now()}`;
 };
 
-const setLoaderSources = (selector, url) => {
+const setSources = (selector, url) => {
   const resolved = withCacheBust(url);
   document.querySelectorAll(selector).forEach((img) => {
     img.src = resolved;
@@ -60,9 +61,16 @@ const setBuildingState = (state, message) => {
   }
 };
 
+const loadLoopingTransitions = () => {
+  setSources('img.loader-border-light', loaderBorderLightTransitionUrl);
+  setSources('img.loader-border-dark', loaderBorderDarkTransitionUrl);
+  setSources('img.loader-solid-light', loaderSolidLightTransitionUrl);
+  setSources('img.loader-solid-dark', loaderSolidDarkTransitionUrl);
+};
+
 const buildLoader = async () => {
   const { grid, cell, frames, ms } = getControlValues();
-  const params = new URLSearchParams({ grid, cell, frames, ms });
+  const params = new URLSearchParams({ grid, cell, frames, ms, transition: DEFAULTS.transition });
   setBuildingState('building');
 
   try {
@@ -72,6 +80,7 @@ const buildLoader = async () => {
       throw new Error(payload.error || 'Build failed');
     }
     setBuildingState('idle');
+    loadLoopingTransitions();
   } catch (error) {
     setBuildingState('error', error?.message);
     console.error('Failed to build loader', error);
@@ -96,11 +105,8 @@ const resetControls = () => {
   scheduleBuild();
 };
 
-setLoaderSources('img.loader-border-light', loaderBorderLightUrl);
-setLoaderSources('img.loader-border-dark', loaderBorderDarkUrl);
-setLoaderSources('img.loader-solid-light', loaderSolidLightUrl);
-setLoaderSources('img.loader-solid-dark', loaderSolidDarkUrl);
 setIconSources(iconSvgUrl);
+loadLoopingTransitions();
 
 ['#gridSize', '#cellSize', '#frameCount', '#frameMs'].forEach((selector) => {
   const el = document.querySelector(selector);
@@ -115,24 +121,24 @@ if (resetButton) {
 }
 
 if (import.meta.hot) {
-  import.meta.hot.accept('./assets/loader.gif?url', (mod) => {
+  import.meta.hot.accept('./assets/loader-transition.gif?url', (mod) => {
     if (mod?.default) {
-      setLoaderSources('img.loader-border-light', mod.default);
+      setSources('img.loader-border-light', mod.default);
     }
   });
-  import.meta.hot.accept('./assets/loader-dark.gif?url', (mod) => {
+  import.meta.hot.accept('./assets/loader-transition-dark.gif?url', (mod) => {
     if (mod?.default) {
-      setLoaderSources('img.loader-border-dark', mod.default);
+      setSources('img.loader-border-dark', mod.default);
     }
   });
-  import.meta.hot.accept('./assets/loader-solid.gif?url', (mod) => {
+  import.meta.hot.accept('./assets/loader-solid-transition.gif?url', (mod) => {
     if (mod?.default) {
-      setLoaderSources('img.loader-solid-light', mod.default);
+      setSources('img.loader-solid-light', mod.default);
     }
   });
-  import.meta.hot.accept('./assets/loader-solid-dark.gif?url', (mod) => {
+  import.meta.hot.accept('./assets/loader-solid-transition-dark.gif?url', (mod) => {
     if (mod?.default) {
-      setLoaderSources('img.loader-solid-dark', mod.default);
+      setSources('img.loader-solid-dark', mod.default);
     }
   });
   import.meta.hot.accept('./assets/logo.svg?url', (mod) => {

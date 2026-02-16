@@ -14,6 +14,10 @@ const targets = [
   path.join(rootDir, 'src', 'assets', 'loader-dark.gif'),
   path.join(rootDir, 'src', 'assets', 'loader-solid.gif'),
   path.join(rootDir, 'src', 'assets', 'loader-solid-dark.gif'),
+  path.join(rootDir, 'src', 'assets', 'loader-transition.gif'),
+  path.join(rootDir, 'src', 'assets', 'loader-transition-dark.gif'),
+  path.join(rootDir, 'src', 'assets', 'loader-solid-transition.gif'),
+  path.join(rootDir, 'src', 'assets', 'loader-solid-transition-dark.gif'),
 ];
 
 for (const filePath of targets) {

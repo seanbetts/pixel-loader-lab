@@ -14,6 +14,7 @@ const defaults = {
   ms: 120,
   palette: 32,
   cell: 8,
+  transition: 6,
 };
 
 const args = parseArgs(process.argv.slice(2));
@@ -23,6 +24,7 @@ const options = {
   ms: toInt(args.ms, defaults.ms),
   palette: args.palette === undefined ? defaults.palette : toInt(args.palette, defaults.palette),
   cell: toInt(args.cell, defaults.cell),
+  transition: toInt(args.transition, defaults.transition),
 };
 
 const pngInputPath = path.join(rootDir, 'src', 'assets', 'icon-source.png');
@@ -32,6 +34,10 @@ const outputBorderLight = path.join(rootDir, 'src', 'assets', 'loader.gif');
 const outputBorderDark = path.join(rootDir, 'src', 'assets', 'loader-dark.gif');
 const outputSolidLight = path.join(rootDir, 'src', 'assets', 'loader-solid.gif');
 const outputSolidDark = path.join(rootDir, 'src', 'assets', 'loader-solid-dark.gif');
+const outputBorderLightTransition = path.join(rootDir, 'src', 'assets', 'loader-transition.gif');
+const outputBorderDarkTransition = path.join(rootDir, 'src', 'assets', 'loader-transition-dark.gif');
+const outputSolidLightTransition = path.join(rootDir, 'src', 'assets', 'loader-solid-transition.gif');
+const outputSolidDarkTransition = path.join(rootDir, 'src', 'assets', 'loader-solid-transition-dark.gif');
 const tmpDir = path.join(rootDir, '.tmp', 'frames');
 const palettePath = path.join(rootDir, '.tmp', 'palette.png');
 
@@ -41,9 +47,6 @@ if (!fs.existsSync(inputPath)) {
 }
 
 ensureFfmpeg();
-
-fs.rmSync(tmpDir, { recursive: true, force: true });
-fs.mkdirSync(tmpDir, { recursive: true });
 
 const offsets = [0];
 
@@ -56,29 +59,64 @@ const baseBuffer = await sharp(inputPath)
   .png()
   .toBuffer();
 
+const outputSize = options.grid * options.cell;
+const originalBuffer = await sharp(inputPath)
+  .resize(outputSize, outputSize, {
+    fit: 'contain',
+    background: { r: 0, g: 0, b: 0, alpha: 0 },
+  })
+  .png()
+  .toBuffer();
+const originalDarkBuffer = await sharp(originalBuffer).negate({ alpha: false }).png().toBuffer();
+
 const borderLight = await renderBordered(baseBuffer, options.grid, options.cell, false);
 const borderDark = await renderBordered(baseBuffer, options.grid, options.cell, true);
 const solidLight = await renderSolid(baseBuffer, options.grid, options.cell, false);
 const solidDark = await renderSolid(baseBuffer, options.grid, options.cell, true);
 
+await prepareFramesDir(tmpDir);
 await writeFrames(borderLight, options, offsets, tmpDir);
 await buildGif(options, tmpDir, palettePath, outputBorderLight);
 
+await prepareFramesDir(tmpDir);
 await writeFrames(borderDark, options, offsets, tmpDir);
 await buildGif(options, tmpDir, palettePath, outputBorderDark);
 
+await prepareFramesDir(tmpDir);
 await writeFrames(solidLight, options, offsets, tmpDir);
 await buildGif(options, tmpDir, palettePath, outputSolidLight);
 
+await prepareFramesDir(tmpDir);
 await writeFrames(solidDark, options, offsets, tmpDir);
 await buildGif(options, tmpDir, palettePath, outputSolidDark);
+
+if (options.transition > 0) {
+  const totalFrames = options.transition + options.frames;
+
+  await prepareFramesDir(tmpDir);
+  await writeTransitionFrames(originalBuffer, borderLight, options, tmpDir);
+  await buildGif({ ...options, frames: totalFrames }, tmpDir, palettePath, outputBorderLightTransition);
+
+  await prepareFramesDir(tmpDir);
+  await writeTransitionFrames(originalDarkBuffer, borderDark, options, tmpDir);
+  await buildGif({ ...options, frames: totalFrames }, tmpDir, palettePath, outputBorderDarkTransition);
+
+  await prepareFramesDir(tmpDir);
+  await writeTransitionFrames(originalBuffer, solidLight, options, tmpDir);
+  await buildGif({ ...options, frames: totalFrames }, tmpDir, palettePath, outputSolidLightTransition);
+
+  await prepareFramesDir(tmpDir);
+  await writeTransitionFrames(originalDarkBuffer, solidDark, options, tmpDir);
+  await buildGif({ ...options, frames: totalFrames }, tmpDir, palettePath, outputSolidDarkTransition);
+}
 
 console.log(
   `Generated loader variants (${options.frames} frames @ ${options.ms}ms):\n` +
     `- ${path.relative(rootDir, outputBorderLight)}\n` +
     `- ${path.relative(rootDir, outputBorderDark)}\n` +
     `- ${path.relative(rootDir, outputSolidLight)}\n` +
-    `- ${path.relative(rootDir, outputSolidDark)}`
+    `- ${path.relative(rootDir, outputSolidDark)}\n` +
+    `Transition frames: ${options.transition}`
 );
 
 function parseArgs(argv) {
@@ -123,6 +161,11 @@ function runCommand(cmd, args) {
   }
 }
 
+async function prepareFramesDir(framesDir) {
+  fs.rmSync(framesDir, { recursive: true, force: true });
+  fs.mkdirSync(framesDir, { recursive: true });
+}
+
 async function writeFrames(buffer, options, offsets, framesDir) {
   const outputSize = options.grid * options.cell;
   for (let i = 0; i < options.frames; i += 1) {
@@ -142,6 +185,33 @@ async function writeFrames(buffer, options, offsets, framesDir) {
 
     await canvas
       .composite([{ input: buffer, top, left }])
+      .png()
+      .toFile(framePath);
+  }
+}
+
+async function writeTransitionFrames(fromBuffer, toBuffer, options, framesDir) {
+  const outputSize = options.grid * options.cell;
+  const transitionFrames = Math.max(1, options.transition);
+  const idleFrames = Math.max(1, options.frames);
+  const totalFrames = transitionFrames + idleFrames;
+
+  for (let i = 0; i < totalFrames; i += 1) {
+    const isTransition = i < transitionFrames;
+    const isLastTransition = i === transitionFrames - 1;
+    const framePath = path.join(framesDir, `frame-${String(i).padStart(3, '0')}.png`);
+
+    const frameSource = isTransition && !isLastTransition ? fromBuffer : toBuffer;
+
+    await sharp({
+      create: {
+        width: outputSize,
+        height: outputSize,
+        channels: 4,
+        background: { r: 0, g: 0, b: 0, alpha: 0 },
+      },
+    })
+      .composite([{ input: frameSource, blend: 'over', opacity: 1 }])
       .png()
       .toFile(framePath);
   }
