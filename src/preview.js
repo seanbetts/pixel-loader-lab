@@ -211,10 +211,18 @@ const resetControls = () => {
 const exportGif = async () => {
   setBuildingState('building');
   try {
+    const optimizeResponse = await fetch('/__optimize-loader', { method: 'POST' });
+    if (!optimizeResponse.ok) {
+      const payload = await optimizeResponse.json().catch(() => ({}));
+      throw new Error(payload.error || 'Optimize failed');
+    }
+    const optimized = await optimizeResponse.json();
     const base = window.location.origin;
     const cacheBust = Date.now();
-    const lightUrl = `${base}/assets/loader-transition.gif?t=${cacheBust}`;
-    const darkUrl = `${base}/assets/loader-transition-dark.gif?t=${cacheBust}`;
+    const lightName = optimized.light || 'loader-transition.gif';
+    const darkName = optimized.dark || 'loader-transition-dark.gif';
+    const lightUrl = `${base}/assets/${lightName}?t=${cacheBust}`;
+    const darkUrl = `${base}/assets/${darkName}?t=${cacheBust}`;
     const exportHtml = `<!doctype html>
 <html lang="en">
   <head>

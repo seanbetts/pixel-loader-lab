@@ -6,6 +6,8 @@ A tiny, standalone sandbox for iterating on a pixelated, animated loader derived
 - Node LTS
 - ffmpeg (macOS):
   - `brew install ffmpeg`
+- gifsicle (macOS, export optimization):
+  - `brew install gifsicle`
 
 ## Setup
 1. `npm install`
@@ -14,8 +16,10 @@ A tiny, standalone sandbox for iterating on a pixelated, animated loader derived
 ## Run
 - `npm run dev` (opens the preview page)
 - In another terminal: `npm run build:loader`
+- Click **Export** in the preview UI to open optimized GIFs in a new tab.
 
 ## Notes
 - Generated output lives at `src/assets/loader.gif` (copy this into the main app when ready).
 - `image-rendering: pixelated` is applied in `src/styles.css`.
 - `npm run stats` prints dimensions + sizes for input/output images.
+- Export uses `gifsicle -O3 --careful` to reduce file size before download.
