@@ -14,19 +14,6 @@
       <div class="layout">
         <section class="panel light controls">
           <div class="panel-title">Controls</div>
-          <div class="control">
-            <label class="control-label" for="frameCount">Idle frames</label>
-            <select id="frameCount" class="control-input">
-              <option value="4">4</option>
-              <option value="6">6</option>
-              <option value="8">8</option>
-              <option value="10">10</option>
-              <option value="12">12</option>
-              <option value="16" selected>16</option>
-              <option value="20">20</option>
-              <option value="24">24</option>
-            </select>
-          </div>
           <div class="controls-actions">
             <button class="button" id="resetButton" type="button">Reset</button>
             <button class="button ghost" id="prevButton" type="button">Prev</button>
@@ -37,6 +24,9 @@
             <label class="control-label" for="frameSlider">Frame</label>
             <input id="frameSlider" class="control-input" type="range" min="0" max="0" value="0" />
             <div class="frame-readout" id="frameReadout">Frame 1 / 1</div>
+          </div>
+          <div class="control">
+            <button class="button ghost" id="exportButton" type="button">Export GIF</button>
           </div>
         </section>
 

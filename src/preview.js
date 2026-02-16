@@ -2,7 +2,6 @@ import './styles.css';
 import iconSvgUrl from './assets/logo.svg?url';
 
 const DEFAULTS = {
-  frames: '16',
   transition: 10,
 };
 
@@ -19,13 +18,11 @@ const setIconSources = (url) => {
   });
 };
 
-const getControlValues = () => ({
-  frames: document.querySelector('#frameCount')?.value ?? DEFAULTS.frames,
-});
-
 const setBuildingState = (state, message) => {
   const statusEl = document.querySelector('#buildStatus');
-  const controls = document.querySelectorAll('.control-input, #resetButton, #stepButton, #prevButton');
+  const controls = document.querySelectorAll(
+    '.control-input, #resetButton, #stepButton, #prevButton, #exportButton'
+  );
   controls.forEach((el) => {
     el.disabled = state === 'building';
   });
@@ -179,8 +176,7 @@ const setFrameFromSlider = async (value) => {
 };
 
 const buildLoader = async () => {
-  const { frames } = getControlValues();
-  const params = new URLSearchParams({ frames, transition: DEFAULTS.transition });
+  const params = new URLSearchParams({ transition: DEFAULTS.transition });
   setBuildingState('building');
 
   try {
@@ -209,9 +205,137 @@ const scheduleBuild = () => {
 };
 
 const resetControls = () => {
-  const frames = document.querySelector('#frameCount');
-  if (frames) frames.value = DEFAULTS.frames;
   scheduleBuild();
+};
+
+const exportGif = async () => {
+  setBuildingState('building');
+  try {
+    const base = window.location.origin;
+    const cacheBust = Date.now();
+    const lightUrl = `${base}/assets/loader-transition.gif?t=${cacheBust}`;
+    const darkUrl = `${base}/assets/loader-transition-dark.gif?t=${cacheBust}`;
+    const exportHtml = `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Pixel Loader Export</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: "Space Grotesk", system-ui, sans-serif;
+      }
+      body {
+        margin: 24px;
+        background: #f6f6f3;
+        color: #121212;
+      }
+      .wrap {
+        display: flex;
+        gap: 20px;
+        justify-content: center;
+        align-items: flex-start;
+        flex-wrap: wrap;
+      }
+      .page-actions {
+        display: flex;
+        justify-content: center;
+        margin-top: 16px;
+      }
+      .page-actions .download-all {
+        width: 100%;
+        max-width: 532px;
+        justify-content: center;
+      }
+      .panel {
+        border-radius: 16px;
+        padding: 16px;
+        border: 1px solid rgba(0,0,0,0.08);
+        background: #fff;
+      }
+      .panel.dark {
+        background: #141414;
+        color: #f2f2f2;
+        border-color: rgba(255,255,255,0.08);
+      }
+      .title {
+        font-weight: 600;
+        margin-bottom: 12px;
+      }
+      img {
+        width: 256px;
+        height: 256px;
+        image-rendering: pixelated;
+      }
+      .download-all {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 8px 14px;
+        border-radius: 999px;
+        border: 1px solid rgba(0,0,0,0.2);
+        text-decoration: none;
+        color: inherit;
+        font-size: 12px;
+        background: #fff;
+      }
+      .actions {
+        margin-top: 12px;
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+      .note {
+        font-size: 12px;
+        opacity: 0.7;
+        margin-top: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="panel">
+        <div class="title">Light background</div>
+        <img src="${lightUrl}" alt="Pixel loader light" />
+      </div>
+      <div class="panel dark">
+        <div class="title">Dark background</div>
+        <img src="${darkUrl}" alt="Pixel loader dark" />
+      </div>
+    </div>
+    <div class="page-actions">
+      <a class="download-all" href="${lightUrl}" download="pixel-loader-light.gif">Download both GIFs</a>
+    </div>
+    <script>
+      document.querySelector('.download-all')?.addEventListener('click', (event) => {
+        event.preventDefault();
+        const click = (href, name) => {
+          const link = document.createElement('a');
+          link.href = href;
+          link.download = name;
+          document.body.appendChild(link);
+          link.click();
+          link.remove();
+        };
+        click('${lightUrl}', 'pixel-loader-light.gif');
+        click('${darkUrl}', 'pixel-loader-dark.gif');
+      });
+    </script>
+  </body>
+</html>`;
+    const exportBlob = new Blob([exportHtml], { type: 'text/html' });
+    const exportUrl = URL.createObjectURL(exportBlob);
+    const opened = window.open(exportUrl, '_blank');
+    if (!opened) {
+      window.location.href = exportUrl;
+    }
+    setTimeout(() => URL.revokeObjectURL(exportUrl), 60_000);
+    setBuildingState('idle');
+  } catch (error) {
+    setBuildingState('error', error?.message);
+    console.error('Failed to export GIF', error);
+  }
 };
 
 const boot = async () => {
@@ -239,14 +363,12 @@ const boot = async () => {
       setFrameFromSlider(event.target.value);
     });
   }
-};
 
-['#frameCount'].forEach((selector) => {
-  const el = document.querySelector(selector);
-  if (el) {
-    el.addEventListener('change', scheduleBuild);
+  const exportButton = document.querySelector('#exportButton');
+  if (exportButton) {
+    exportButton.addEventListener('click', exportGif);
   }
-});
+};
 
 const resetButton = document.querySelector('#resetButton');
 if (resetButton) {
