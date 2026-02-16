@@ -615,9 +615,7 @@ function buildCustomLoadingFrames24() {
   const mergedOverlap = clearTail.map((frame, index) => mergeMasks(frame, buildHead[index] ?? frame));
 
   const loopFrames = clearLead.concat(mergedOverlap, buildRest);
-  const pauseFrame = buildFrames[buildFrames.length - 1];
-  const pauseFrames = pauseFrame ? Array.from({ length: TRANSITION_HOLD_FRAMES }, () => pauseFrame) : [];
-  return loopFrames.concat(pauseFrames, loopFrames);
+  return loopFrames.concat(loopFrames);
 }
 
 function padFrame(lines) {
