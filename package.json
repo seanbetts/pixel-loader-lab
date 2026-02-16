@@ -1,0 +1,20 @@
+{
+  "name": "pixel-loader-lab",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --open",
+    "build": "vite build",
+    "preview": "vite preview",
+    "build:loader": "node scripts/generate-loader.js",
+    "stats": "node scripts/stats.js",
+    "build:all": "npm run build:loader && npm run stats"
+  },
+  "devDependencies": {
+    "vite": "^7.3.1"
+  },
+  "dependencies": {
+    "sharp": "^0.34.3"
+  }
+}
