@@ -91,6 +91,7 @@ const LOADING_SPEED_SWITCH_FRAME = 58;
 const ORIGINAL_HOLD_FRAMES = 10 * SPEED_MULT;
 const OVERLAP_FRAMES = 2 * SPEED_MULT;
 const TRANSITION_FRAMES = Math.max(1, options.transition) * SPEED_MULT;
+const END_FADE_FRAMES = TRANSITION_FRAMES;
 const loadingStartFrames =
   Math.max(0, ORIGINAL_HOLD_FRAMES - OVERLAP_FRAMES) + TRANSITION_FRAMES + TRANSITION_HOLD_FRAMES;
 
@@ -285,7 +286,15 @@ function runCommand(cmd, args) {
 function totalLoopFrames(opts, loadingFrames, speedMult = 1) {
   const originalHoldFrames = 10 * speedMult;
   const transitionFrames = Math.max(1, opts.transition) * speedMult;
-  return originalHoldFrames + transitionFrames + TRANSITION_HOLD_FRAMES + loadingFrames + opts.frames;
+  const endFadeFrames = transitionFrames;
+  return (
+    originalHoldFrames +
+    transitionFrames +
+    TRANSITION_HOLD_FRAMES +
+    loadingFrames +
+    opts.frames +
+    endFadeFrames
+  );
 }
 
 async function prepareFramesDir(framesDir) {
@@ -350,10 +359,12 @@ async function writeBreakingTransitionFrames(
   const overlapFrames = 2 * speedMult;
   const transitionFrames = Math.max(1, options.transition) * speedMult;
   const idleFrames = Math.max(1, options.frames);
+  const endFadeFrames = transitionFrames;
   const totalFrames = totalLoopFrames(options, customFrames24.length, speedMult);
   const transitionHoldFrames = TRANSITION_HOLD_FRAMES;
 
   const pixelData = await sharp(pixelBuffer).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const originalData = await sharp(originalBuffer).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
   const finalBreakingFrame =
     transitionHoldFrames > 0 ? await buildBreakingFrame(pixelData, options, 1) : null;
 
@@ -365,6 +376,8 @@ async function writeBreakingTransitionFrames(
     const holdEnd = breakEnd + transitionHoldFrames;
     const loadingStart = holdEnd;
     const loadingEnd = loadingStart + customFrames24.length;
+    const endFadeStart = loadingEnd + idleFrames;
+    const endFadeEnd = endFadeStart + endFadeFrames;
 
     if (i < breakStart) {
       await sharp(originalBuffer).png().toFile(framePath);
@@ -413,7 +426,20 @@ async function writeBreakingTransitionFrames(
       continue;
     }
 
-    await sharp(pixelBuffer).png().toFile(framePath);
+    if (i < endFadeStart) {
+      await sharp(pixelBuffer).png().toFile(framePath);
+      continue;
+    }
+
+    if (i < endFadeEnd) {
+      const fadeIndex = i - endFadeStart;
+      const progress = endFadeFrames <= 1 ? 1 : fadeIndex / Math.max(1, endFadeFrames - 1);
+      const dissolveFrame = await buildDissolveFrame(originalData, pixelData, options, progress);
+      await sharp(dissolveFrame).png().toFile(framePath);
+      continue;
+    }
+
+    await sharp(originalBuffer).png().toFile(framePath);
   }
 }
 
@@ -803,6 +829,40 @@ async function buildBreakingFrame(pixelData, options, progress) {
           out[dIdx + 1] = data[sIdx + 1];
           out[dIdx + 2] = data[sIdx + 2];
           out[dIdx + 3] = alpha;
+        }
+      }
+    }
+  }
+
+  return sharp(out, { raw: { width: outSize, height: outSize, channels: 4 } })
+    .png()
+    .toBuffer();
+}
+
+async function buildDissolveFrame(originalData, pixelData, options, progress) {
+  const { data: orig, info } = originalData;
+  const { data: pix } = pixelData;
+  const outSize = options.grid * options.cell;
+  const out = new Uint8ClampedArray(outSize * outSize * 4);
+
+  for (let y = 0; y < options.grid; y += 1) {
+    for (let x = 0; x < options.grid; x += 1) {
+      const threshold = hash01(x, y);
+      const useOriginal = progress >= threshold;
+      const src = useOriginal ? orig : pix;
+      const srcX = x * options.cell;
+      const srcY = y * options.cell;
+
+      for (let cy = 0; cy < options.cell; cy += 1) {
+        for (let cx = 0; cx < options.cell; cx += 1) {
+          const sx = srcX + cx;
+          const sy = srcY + cy;
+          const sIdx = (sy * info.width + sx) * 4;
+          const dIdx = sIdx;
+          out[dIdx] = src[sIdx];
+          out[dIdx + 1] = src[sIdx + 1];
+          out[dIdx + 2] = src[sIdx + 2];
+          out[dIdx + 3] = src[sIdx + 3];
         }
       }
     }
