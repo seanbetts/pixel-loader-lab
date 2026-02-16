@@ -6,11 +6,8 @@ import loaderSolidDarkTransitionUrl from './assets/loader-solid-transition-dark.
 import iconSvgUrl from './assets/logo.svg?url';
 
 const DEFAULTS = {
-  grid: '32',
-  cell: '8',
   frames: '8',
-  ms: '120',
-  transition: 6,
+  transition: 10,
 };
 
 const withCacheBust = (url) => {
@@ -34,10 +31,7 @@ const setIconSources = (url) => {
 };
 
 const getControlValues = () => ({
-  grid: document.querySelector('#gridSize')?.value ?? DEFAULTS.grid,
-  cell: document.querySelector('#cellSize')?.value ?? DEFAULTS.cell,
   frames: document.querySelector('#frameCount')?.value ?? DEFAULTS.frames,
-  ms: document.querySelector('#frameMs')?.value ?? DEFAULTS.ms,
 });
 
 const setBuildingState = (state, message) => {
@@ -69,8 +63,8 @@ const loadLoopingTransitions = () => {
 };
 
 const buildLoader = async () => {
-  const { grid, cell, frames, ms } = getControlValues();
-  const params = new URLSearchParams({ grid, cell, frames, ms, transition: DEFAULTS.transition });
+  const { frames } = getControlValues();
+  const params = new URLSearchParams({ frames, transition: DEFAULTS.transition });
   setBuildingState('building');
 
   try {
@@ -94,21 +88,15 @@ const scheduleBuild = () => {
 };
 
 const resetControls = () => {
-  const grid = document.querySelector('#gridSize');
-  const cell = document.querySelector('#cellSize');
   const frames = document.querySelector('#frameCount');
-  const ms = document.querySelector('#frameMs');
-  if (grid) grid.value = DEFAULTS.grid;
-  if (cell) cell.value = DEFAULTS.cell;
   if (frames) frames.value = DEFAULTS.frames;
-  if (ms) ms.value = DEFAULTS.ms;
   scheduleBuild();
 };
 
 setIconSources(iconSvgUrl);
 loadLoopingTransitions();
 
-['#gridSize', '#cellSize', '#frameCount', '#frameMs'].forEach((selector) => {
+['#frameCount'].forEach((selector) => {
   const el = document.querySelector(selector);
   if (el) {
     el.addEventListener('change', scheduleBuild);

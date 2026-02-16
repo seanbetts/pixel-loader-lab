@@ -11,19 +11,19 @@ const rootDir = path.resolve(__dirname, '..');
 const defaults = {
   grid: 32,
   frames: 8,
-  ms: 120,
+  ms: 80,
   palette: 32,
   cell: 8,
-  transition: 6,
+  transition: 10,
 };
 
 const args = parseArgs(process.argv.slice(2));
 const options = {
-  grid: toInt(args.grid, defaults.grid),
+  grid: defaults.grid,
   frames: toInt(args.frames, defaults.frames),
-  ms: toInt(args.ms, defaults.ms),
+  ms: defaults.ms,
   palette: args.palette === undefined ? defaults.palette : toInt(args.palette, defaults.palette),
-  cell: toInt(args.cell, defaults.cell),
+  cell: defaults.cell,
   transition: toInt(args.transition, defaults.transition),
 };
 
@@ -91,23 +91,21 @@ await writeFrames(solidDark, options, offsets, tmpDir);
 await buildGif(options, tmpDir, palettePath, outputSolidDark);
 
 if (options.transition > 0) {
-  const totalFrames = options.transition + options.frames;
+  await prepareFramesDir(tmpDir);
+  await writeBreakingTransitionFrames(originalBuffer, borderLight, options, tmpDir);
+  await buildGif({ ...options, frames: options.transition + options.frames }, tmpDir, palettePath, outputBorderLightTransition);
 
   await prepareFramesDir(tmpDir);
-  await writeTransitionFrames(originalBuffer, borderLight, options, tmpDir);
-  await buildGif({ ...options, frames: totalFrames }, tmpDir, palettePath, outputBorderLightTransition);
+  await writeBreakingTransitionFrames(originalDarkBuffer, borderDark, options, tmpDir);
+  await buildGif({ ...options, frames: options.transition + options.frames }, tmpDir, palettePath, outputBorderDarkTransition);
 
   await prepareFramesDir(tmpDir);
-  await writeTransitionFrames(originalDarkBuffer, borderDark, options, tmpDir);
-  await buildGif({ ...options, frames: totalFrames }, tmpDir, palettePath, outputBorderDarkTransition);
+  await writeBreakingTransitionFrames(originalBuffer, solidLight, options, tmpDir);
+  await buildGif({ ...options, frames: options.transition + options.frames }, tmpDir, palettePath, outputSolidLightTransition);
 
   await prepareFramesDir(tmpDir);
-  await writeTransitionFrames(originalBuffer, solidLight, options, tmpDir);
-  await buildGif({ ...options, frames: totalFrames }, tmpDir, palettePath, outputSolidLightTransition);
-
-  await prepareFramesDir(tmpDir);
-  await writeTransitionFrames(originalDarkBuffer, solidDark, options, tmpDir);
-  await buildGif({ ...options, frames: totalFrames }, tmpDir, palettePath, outputSolidDarkTransition);
+  await writeBreakingTransitionFrames(originalDarkBuffer, solidDark, options, tmpDir);
+  await buildGif({ ...options, frames: options.transition + options.frames }, tmpDir, palettePath, outputSolidDarkTransition);
 }
 
 console.log(
@@ -190,31 +188,110 @@ async function writeFrames(buffer, options, offsets, framesDir) {
   }
 }
 
-async function writeTransitionFrames(fromBuffer, toBuffer, options, framesDir) {
+async function writeBreakingTransitionFrames(originalBuffer, pixelBuffer, options, framesDir) {
   const outputSize = options.grid * options.cell;
+  const originalHoldFrames = 10;
+  const overlapFrames = 2;
   const transitionFrames = Math.max(1, options.transition);
   const idleFrames = Math.max(1, options.frames);
-  const totalFrames = transitionFrames + idleFrames;
+  const totalFrames = originalHoldFrames + transitionFrames + idleFrames;
+
+  const pixelData = await sharp(pixelBuffer).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
 
   for (let i = 0; i < totalFrames; i += 1) {
-    const isTransition = i < transitionFrames;
-    const isLastTransition = i === transitionFrames - 1;
     const framePath = path.join(framesDir, `frame-${String(i).padStart(3, '0')}.png`);
 
-    const frameSource = isTransition && !isLastTransition ? fromBuffer : toBuffer;
+    const breakStart = Math.max(0, originalHoldFrames - overlapFrames);
+    const breakEnd = breakStart + transitionFrames;
 
-    await sharp({
-      create: {
-        width: outputSize,
-        height: outputSize,
-        channels: 4,
-        background: { r: 0, g: 0, b: 0, alpha: 0 },
-      },
-    })
-      .composite([{ input: frameSource, blend: 'over', opacity: 1 }])
-      .png()
-      .toFile(framePath);
+    if (i < breakStart) {
+      await sharp(originalBuffer).png().toFile(framePath);
+      continue;
+    }
+
+    if (i < breakEnd) {
+      const progress = (i - breakStart) / Math.max(1, transitionFrames - 1);
+      const breakingFrame = await buildBreakingFrame(pixelData, options, progress);
+      if (i < originalHoldFrames) {
+        await sharp({
+          create: {
+            width: outputSize,
+            height: outputSize,
+            channels: 4,
+            background: { r: 0, g: 0, b: 0, alpha: 0 },
+          },
+        })
+          .composite([
+            { input: originalBuffer, blend: 'over', opacity: 1 },
+            { input: breakingFrame, blend: 'over', opacity: 1 },
+          ])
+          .png()
+          .toFile(framePath);
+      } else {
+        await sharp(breakingFrame).png().toFile(framePath);
+      }
+      continue;
+    }
+
+    await sharp(pixelBuffer).png().toFile(framePath);
   }
+}
+
+async function buildBreakingFrame(pixelData, options, progress) {
+  const { data, info } = pixelData;
+  const outSize = options.grid * options.cell;
+  const out = new Uint8ClampedArray(outSize * outSize * 4);
+  const jitterScale = (1 - progress) * options.cell * 1.4;
+  const reveal = progress;
+
+  for (let y = 0; y < options.grid; y += 1) {
+    for (let x = 0; x < options.grid; x += 1) {
+      const threshold = hash01(x, y);
+      if (reveal < threshold) continue;
+
+      const jitterX = Math.round((hash01(x + 17, y + 29) * 2 - 1) * jitterScale);
+      const jitterY = Math.round((hash01(x + 41, y + 11) * 2 - 1) * jitterScale);
+
+      const srcX = x * options.cell;
+      const srcY = y * options.cell;
+      const destX = clamp(srcX + jitterX, 0, outSize - options.cell);
+      const destY = clamp(srcY + jitterY, 0, outSize - options.cell);
+
+      for (let cy = 0; cy < options.cell; cy += 1) {
+        for (let cx = 0; cx < options.cell; cx += 1) {
+          const sx = srcX + cx;
+          const sy = srcY + cy;
+          const dx = destX + cx;
+          const dy = destY + cy;
+
+          const sIdx = (sy * info.width + sx) * 4;
+          const dIdx = (dy * outSize + dx) * 4;
+
+          const alpha = data[sIdx + 3];
+          if (alpha === 0) continue;
+
+          out[dIdx] = data[sIdx];
+          out[dIdx + 1] = data[sIdx + 1];
+          out[dIdx + 2] = data[sIdx + 2];
+          out[dIdx + 3] = alpha;
+        }
+      }
+    }
+  }
+
+  return sharp(out, { raw: { width: outSize, height: outSize, channels: 4 } })
+    .png()
+    .toBuffer();
+}
+
+function hash01(x, y) {
+  const seed = (x + 1) * 374761393 + (y + 1) * 668265263;
+  const mangled = (seed ^ (seed >> 13)) * 1274126177;
+  return ((mangled ^ (mangled >> 16)) >>> 0) / 4294967295;
+}
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
 }
 
 async function buildGif(options, framesDir, palettePath, outputPath) {

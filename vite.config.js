@@ -37,15 +37,11 @@ const buildLoaderPlugin = () => {
         const url = new URL(req.url ?? '', 'http://localhost');
         const params = url.searchParams;
         const args = [];
-        const grid = params.get('grid');
-        const cell = params.get('cell');
         const frames = params.get('frames');
-        const ms = params.get('ms');
+        const transition = params.get('transition');
 
-        if (grid) args.push('--grid', grid);
-        if (cell) args.push('--cell', cell);
         if (frames) args.push('--frames', frames);
-        if (ms) args.push('--ms', ms);
+        if (transition) args.push('--transition', transition);
 
         queue = queue.then(() => runBuild(args));
 
