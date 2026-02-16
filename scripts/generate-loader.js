@@ -326,8 +326,6 @@ function buildCustomLoadingFrames24() {
   const frames = [];
   const size = 24;
   const visibilityMask = iconMask24;
-  const blank = Array.from({ length: size }, () => '.'.repeat(size));
-  frames.push(blank);
 
   for (let k = 1; k <= 20; k += 1) {
     const row1 = '..' + '#'.repeat(k) + '.'.repeat(size - 2 - k);
