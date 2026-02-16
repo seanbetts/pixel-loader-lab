@@ -583,7 +583,38 @@ function buildCustomLoadingFrames24() {
     applyGhosts(frame, buildDeltas[index], buildDeltas[index - 1], false)
   );
 
-  const loopFrames = ghostedClearFrames.concat(ghostedBuildFrames);
+  const mergeMasks = (left, right) => {
+    const merged = [];
+    for (let y = 0; y < size; y += 1) {
+      const rowA = left[y];
+      const rowB = right[y];
+      let row = '';
+      for (let x = 0; x < size; x += 1) {
+        const a = rowA[x];
+        const b = rowB[x];
+        if (a === '#' || b === '#') {
+          row += '#';
+        } else if (a === 'b' || b === 'b') {
+          row += 'b';
+        } else if (a === 'a' || b === 'a') {
+          row += 'a';
+        } else {
+          row += '.';
+        }
+      }
+      merged.push(row);
+    }
+    return merged;
+  };
+
+  const overlapCount = Math.min(2, ghostedClearFrames.length, ghostedBuildFrames.length);
+  const clearLead = overlapCount > 0 ? ghostedClearFrames.slice(0, -overlapCount) : ghostedClearFrames;
+  const clearTail = overlapCount > 0 ? ghostedClearFrames.slice(-overlapCount) : [];
+  const buildHead = overlapCount > 0 ? ghostedBuildFrames.slice(0, overlapCount) : [];
+  const buildRest = overlapCount > 0 ? ghostedBuildFrames.slice(overlapCount) : ghostedBuildFrames;
+  const mergedOverlap = clearTail.map((frame, index) => mergeMasks(frame, buildHead[index] ?? frame));
+
+  const loopFrames = clearLead.concat(mergedOverlap, buildRest);
   const pauseFrame = buildFrames[buildFrames.length - 1];
   const pauseFrames = pauseFrame ? Array.from({ length: TRANSITION_HOLD_FRAMES }, () => pauseFrame) : [];
   return loopFrames.concat(pauseFrames, loopFrames);
