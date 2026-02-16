@@ -379,6 +379,40 @@ function buildCustomLoadingFrames24() {
     pushIfChanged(frames, maskFromGrid(grid), visibilityMask);
   }
 
+  // Sweep up the left edge and build the center bar bottom-up.
+  const centerSegment = findCenterSegment(visibilityMask);
+  const centerCols = centerSegment
+    ? Array.from({ length: centerSegment.end - centerSegment.start + 1 }, (_, i) => centerSegment.start + i)
+    : [];
+
+  for (let y = size - 1; y >= 0; y -= 1) {
+    setIfInBounds(grid, 0, y, '#');
+    setIfInBounds(grid, 1, y + 1, '#');
+    setIfInBounds(grid, 2, y + 2, '#');
+
+    // Build the center bar diagonally without adding extra frames.
+    for (let i = 0; i < centerCols.length; i += 1) {
+      const col = centerCols[i];
+      const row = y + i;
+      if (row < 0 || row >= size) continue;
+      if (visibilityMask[row][col] === '#') {
+        setIfInBounds(grid, col, row, '#');
+      }
+    }
+
+    pushIfChanged(frames, maskFromGrid(grid), visibilityMask);
+  }
+
+  // Fill any remaining pixels (safety).
+  for (let y = 0; y < size; y += 1) {
+    for (let x = 0; x < size; x += 1) {
+      if (visibilityMask[y][x] !== '#') continue;
+      if (grid[y][x] === '#') continue;
+      grid[y][x] = '#';
+      pushIfChanged(frames, maskFromGrid(grid), visibilityMask);
+    }
+  }
+
   const targetLength = 73;
   while (frames.length < targetLength) {
     frames.push(frames[frames.length - 1]);
@@ -437,6 +471,29 @@ function setIfInBounds(grid, x, y, value) {
   if (y < 0 || y >= grid.length) return;
   if (x < 0 || x >= grid[y].length) return;
   grid[y][x] = value;
+}
+
+function findCenterSegment(mask) {
+  for (const row of mask) {
+    const segments = [];
+    let inSegment = false;
+    let start = 0;
+    for (let x = 0; x < row.length; x += 1) {
+      const on = row[x] === '#';
+      if (on && !inSegment) {
+        inSegment = true;
+        start = x;
+      } else if (!on && inSegment) {
+        segments.push({ start, end: x - 1 });
+        inSegment = false;
+      }
+    }
+    if (inSegment) segments.push({ start, end: row.length - 1 });
+    if (segments.length >= 3) {
+      return segments[Math.floor(segments.length / 2)];
+    }
+  }
+  return null;
 }
 
 async function renderCustomMaskFrame(pixelData, mask24, options) {
