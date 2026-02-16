@@ -11,7 +11,7 @@ const rootDir = path.resolve(__dirname, '..');
 const defaults = {
   grid: 32,
   frames: 16,
-  ms: 80,
+  ms: 40,
   palette: 32,
   cell: 8,
   transition: 10,
@@ -85,7 +85,15 @@ if (!fs.existsSync(inputPath)) {
 ensureFfmpeg();
 
 const offsets = [0];
+const SPEED_MULT = 2;
+const SLOW_LOADING_FRAMES = 0;
+
 const customLoadingFrames24 = buildCustomLoadingFrames24();
+const expandedLoadingFrames24 = expandLoadingFrames(
+  customLoadingFrames24,
+  SLOW_LOADING_FRAMES,
+  SPEED_MULT
+);
 
 const baseBuffer = await sharp(inputPath)
   .resize(options.grid, options.grid, {
@@ -136,25 +144,57 @@ await writeFrames(solidDark, options, offsets, tmpDir);
 await buildGif(options, tmpDir, palettePath, outputSolidDark);
 
 if (options.transition > 0) {
-  const totalFrames = totalLoopFrames(options, customLoadingFrames24.length);
+  const totalFrames = totalLoopFrames(options, expandedLoadingFrames24.length, SPEED_MULT);
 
   await prepareFramesDir(tmpDir);
-  await writeBreakingTransitionFrames(originalBuffer, borderLight, baseBuffer, options, tmpDir, customLoadingFrames24);
+  await writeBreakingTransitionFrames(
+    originalBuffer,
+    borderLight,
+    baseBuffer,
+    options,
+    tmpDir,
+    expandedLoadingFrames24,
+    SPEED_MULT
+  );
   await buildGif({ ...options, frames: totalFrames }, tmpDir, palettePath, outputBorderLightTransition);
   await exportFrames(tmpDir, path.join(framesRoot, 'border-light'), totalFrames, options);
 
   await prepareFramesDir(tmpDir);
-  await writeBreakingTransitionFrames(originalDarkBuffer, borderDark, baseBuffer, options, tmpDir, customLoadingFrames24);
+  await writeBreakingTransitionFrames(
+    originalDarkBuffer,
+    borderDark,
+    baseBuffer,
+    options,
+    tmpDir,
+    expandedLoadingFrames24,
+    SPEED_MULT
+  );
   await buildGif({ ...options, frames: totalFrames }, tmpDir, palettePath, outputBorderDarkTransition);
   await exportFrames(tmpDir, path.join(framesRoot, 'border-dark'), totalFrames, options);
 
   await prepareFramesDir(tmpDir);
-  await writeBreakingTransitionFrames(originalBuffer, solidLight, baseBuffer, options, tmpDir, customLoadingFrames24);
+  await writeBreakingTransitionFrames(
+    originalBuffer,
+    solidLight,
+    baseBuffer,
+    options,
+    tmpDir,
+    expandedLoadingFrames24,
+    SPEED_MULT
+  );
   await buildGif({ ...options, frames: totalFrames }, tmpDir, palettePath, outputSolidLightTransition);
   await exportFrames(tmpDir, path.join(framesRoot, 'solid-light'), totalFrames, options);
 
   await prepareFramesDir(tmpDir);
-  await writeBreakingTransitionFrames(originalDarkBuffer, solidDark, baseBuffer, options, tmpDir, customLoadingFrames24);
+  await writeBreakingTransitionFrames(
+    originalDarkBuffer,
+    solidDark,
+    baseBuffer,
+    options,
+    tmpDir,
+    expandedLoadingFrames24,
+    SPEED_MULT
+  );
   await buildGif({ ...options, frames: totalFrames }, tmpDir, palettePath, outputSolidDarkTransition);
   await exportFrames(tmpDir, path.join(framesRoot, 'solid-dark'), totalFrames, options);
 }
@@ -199,6 +239,19 @@ function ensureFfmpeg() {
   }
 }
 
+function expandLoadingFrames(frames, slowCount, multiplier) {
+  if (multiplier <= 1) return frames;
+  const out = [];
+  const cutoff = Math.min(slowCount, frames.length);
+  for (let i = 0; i < frames.length; i += 1) {
+    const repeat = i < cutoff ? multiplier : 1;
+    for (let r = 0; r < repeat; r += 1) {
+      out.push(frames[i]);
+    }
+  }
+  return out;
+}
+
 function runCommand(cmd, args) {
   const result = spawnSync(cmd, args, { stdio: 'inherit' });
   if (result.error) {
@@ -210,9 +263,10 @@ function runCommand(cmd, args) {
   }
 }
 
-function totalLoopFrames(opts, loadingFrames) {
-  const originalHoldFrames = 10;
-  return originalHoldFrames + opts.transition + loadingFrames + opts.frames;
+function totalLoopFrames(opts, loadingFrames, speedMult = 1) {
+  const originalHoldFrames = 10 * speedMult;
+  const transitionFrames = Math.max(1, opts.transition) * speedMult;
+  return originalHoldFrames + transitionFrames + loadingFrames + opts.frames;
 }
 
 async function prepareFramesDir(framesDir) {
@@ -263,13 +317,21 @@ async function writeFrames(buffer, options, offsets, framesDir) {
   }
 }
 
-async function writeBreakingTransitionFrames(originalBuffer, pixelBuffer, baseBuffer, options, framesDir, customFrames24) {
+async function writeBreakingTransitionFrames(
+  originalBuffer,
+  pixelBuffer,
+  baseBuffer,
+  options,
+  framesDir,
+  customFrames24,
+  speedMult = 1
+) {
   const outputSize = options.grid * options.cell;
-  const originalHoldFrames = 10;
-  const overlapFrames = 2;
-  const transitionFrames = Math.max(1, options.transition);
+  const originalHoldFrames = 10 * speedMult;
+  const overlapFrames = 2 * speedMult;
+  const transitionFrames = Math.max(1, options.transition) * speedMult;
   const idleFrames = Math.max(1, options.frames);
-  const totalFrames = totalLoopFrames(options, customFrames24.length);
+  const totalFrames = totalLoopFrames(options, customFrames24.length, speedMult);
 
   const pixelData = await sharp(pixelBuffer).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
 
@@ -287,7 +349,8 @@ async function writeBreakingTransitionFrames(originalBuffer, pixelBuffer, baseBu
     }
 
     if (i < breakEnd) {
-      const progress = (i - breakStart) / Math.max(1, transitionFrames - 1);
+      const baseIndex = Math.floor((i - breakStart) / Math.max(1, speedMult));
+      const progress = baseIndex / Math.max(1, Math.max(1, options.transition) - 1);
       const breakingFrame = await buildBreakingFrame(pixelData, options, progress);
       if (i < originalHoldFrames) {
         await sharp({
