@@ -395,6 +395,18 @@ function buildCustomLoadingFrames24() {
   const centerCols = centerSegment
     ? Array.from({ length: centerSegment.end - centerSegment.start + 1 }, (_, i) => centerSegment.start + i)
     : [];
+  let centerBottomRow = -1;
+  if (centerCols.length) {
+    for (let y = size - 1; y >= 0; y -= 1) {
+      const segments = getSegments(visibilityMask[y]);
+      if (segments.length < 3) continue;
+      const middle = segments[Math.floor(segments.length / 2)];
+      if (centerCols[0] >= middle.start && centerCols[0] <= middle.end) {
+        centerBottomRow = y;
+        break;
+      }
+    }
+  }
 
   for (let y = size - 1; y >= 0; y -= 1) {
     setIfInBounds(grid, 0, y, '#');
@@ -405,6 +417,11 @@ function buildCustomLoadingFrames24() {
     if (y === size - 3) {
       setIfInBounds(grid, 0, y - 1, '#');
       setIfInBounds(grid, 1, y, '#');
+    }
+
+    // Start the center bar on the first left-edge frame.
+    if (y === centerBottomRow + 1 && centerBottomRow >= 0 && centerCols.length) {
+      setIfInBounds(grid, centerCols[0], centerBottomRow, '#');
     }
 
     // Build the center bar diagonally without adding extra frames.
@@ -490,22 +507,27 @@ function setIfInBounds(grid, x, y, value) {
   grid[y][x] = value;
 }
 
+function getSegments(row) {
+  const segments = [];
+  let inSegment = false;
+  let start = 0;
+  for (let x = 0; x < row.length; x += 1) {
+    const on = row[x] === '#';
+    if (on && !inSegment) {
+      inSegment = true;
+      start = x;
+    } else if (!on && inSegment) {
+      segments.push({ start, end: x - 1 });
+      inSegment = false;
+    }
+  }
+  if (inSegment) segments.push({ start, end: row.length - 1 });
+  return segments;
+}
+
 function findCenterSegment(mask) {
   for (const row of mask) {
-    const segments = [];
-    let inSegment = false;
-    let start = 0;
-    for (let x = 0; x < row.length; x += 1) {
-      const on = row[x] === '#';
-      if (on && !inSegment) {
-        inSegment = true;
-        start = x;
-      } else if (!on && inSegment) {
-        segments.push({ start, end: x - 1 });
-        inSegment = false;
-      }
-    }
-    if (inSegment) segments.push({ start, end: row.length - 1 });
+    const segments = getSegments(row);
     if (segments.length >= 3) {
       return segments[Math.floor(segments.length / 2)];
     }
