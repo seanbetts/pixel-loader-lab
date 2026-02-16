@@ -112,10 +112,6 @@ body {
   height: 64px;
 }
 
-.panel.dark .loader {
-  filter: brightness(0) invert(1);
-}
-
 .panel.dark .icon {
   filter: brightness(0) invert(1);
 }

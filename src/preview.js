@@ -1,5 +1,6 @@
 import './styles.css';
 import loaderUrl from './assets/loader.gif?url';
+import loaderDarkUrl from './assets/loader-dark.gif?url';
 import iconSvgUrl from './assets/logo.svg?url';
 
 const DEFAULTS = {
@@ -14,9 +15,9 @@ const withCacheBust = (url) => {
   return `${url}${separator}t=${Date.now()}`;
 };
 
-const setLoaderSources = (url) => {
+const setLoaderSources = (selector, url) => {
   const resolved = withCacheBust(url);
-  document.querySelectorAll('img.loader').forEach((img) => {
+  document.querySelectorAll(selector).forEach((img) => {
     img.src = resolved;
   });
 };
@@ -89,7 +90,8 @@ const resetControls = () => {
   scheduleBuild();
 };
 
-setLoaderSources(loaderUrl);
+setLoaderSources('img.loader-light', loaderUrl);
+setLoaderSources('img.loader-dark', loaderDarkUrl);
 setIconSources(iconSvgUrl);
 
 ['#gridSize', '#frameCount', '#frameMs'].forEach((selector) => {
@@ -107,7 +109,12 @@ if (resetButton) {
 if (import.meta.hot) {
   import.meta.hot.accept('./assets/loader.gif?url', (mod) => {
     if (mod?.default) {
-      setLoaderSources(mod.default);
+      setLoaderSources('img.loader-light', mod.default);
+    }
+  });
+  import.meta.hot.accept('./assets/loader-dark.gif?url', (mod) => {
+    if (mod?.default) {
+      setLoaderSources('img.loader-dark', mod.default);
     }
   });
   import.meta.hot.accept('./assets/logo.svg?url', (mod) => {

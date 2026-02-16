@@ -11,6 +11,7 @@ const targets = [
   path.join(rootDir, 'src', 'assets', 'icon-source.png'),
   path.join(rootDir, 'src', 'assets', 'logo.svg'),
   path.join(rootDir, 'src', 'assets', 'loader.gif'),
+  path.join(rootDir, 'src', 'assets', 'loader-dark.gif'),
 ];
 
 for (const filePath of targets) {

@@ -27,3 +27,4 @@ dist-ssr
 .tmp/
 src/assets/icon-source.png
 src/assets/loader.gif
+src/assets/loader-dark.gif
