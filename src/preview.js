@@ -1,10 +1,13 @@
 import './styles.css';
-import loaderUrl from './assets/loader.gif?url';
-import loaderDarkUrl from './assets/loader-dark.gif?url';
+import loaderBorderLightUrl from './assets/loader.gif?url';
+import loaderBorderDarkUrl from './assets/loader-dark.gif?url';
+import loaderSolidLightUrl from './assets/loader-solid.gif?url';
+import loaderSolidDarkUrl from './assets/loader-solid-dark.gif?url';
 import iconSvgUrl from './assets/logo.svg?url';
 
 const DEFAULTS = {
   grid: '32',
+  cell: '8',
   frames: '8',
   ms: '120',
 };
@@ -31,6 +34,7 @@ const setIconSources = (url) => {
 
 const getControlValues = () => ({
   grid: document.querySelector('#gridSize')?.value ?? DEFAULTS.grid,
+  cell: document.querySelector('#cellSize')?.value ?? DEFAULTS.cell,
   frames: document.querySelector('#frameCount')?.value ?? DEFAULTS.frames,
   ms: document.querySelector('#frameMs')?.value ?? DEFAULTS.ms,
 });
@@ -57,8 +61,8 @@ const setBuildingState = (state, message) => {
 };
 
 const buildLoader = async () => {
-  const { grid, frames, ms } = getControlValues();
-  const params = new URLSearchParams({ grid, frames, ms });
+  const { grid, cell, frames, ms } = getControlValues();
+  const params = new URLSearchParams({ grid, cell, frames, ms });
   setBuildingState('building');
 
   try {
@@ -82,19 +86,23 @@ const scheduleBuild = () => {
 
 const resetControls = () => {
   const grid = document.querySelector('#gridSize');
+  const cell = document.querySelector('#cellSize');
   const frames = document.querySelector('#frameCount');
   const ms = document.querySelector('#frameMs');
   if (grid) grid.value = DEFAULTS.grid;
+  if (cell) cell.value = DEFAULTS.cell;
   if (frames) frames.value = DEFAULTS.frames;
   if (ms) ms.value = DEFAULTS.ms;
   scheduleBuild();
 };
 
-setLoaderSources('img.loader-light', loaderUrl);
-setLoaderSources('img.loader-dark', loaderDarkUrl);
+setLoaderSources('img.loader-border-light', loaderBorderLightUrl);
+setLoaderSources('img.loader-border-dark', loaderBorderDarkUrl);
+setLoaderSources('img.loader-solid-light', loaderSolidLightUrl);
+setLoaderSources('img.loader-solid-dark', loaderSolidDarkUrl);
 setIconSources(iconSvgUrl);
 
-['#gridSize', '#frameCount', '#frameMs'].forEach((selector) => {
+['#gridSize', '#cellSize', '#frameCount', '#frameMs'].forEach((selector) => {
   const el = document.querySelector(selector);
   if (el) {
     el.addEventListener('change', scheduleBuild);
@@ -109,12 +117,22 @@ if (resetButton) {
 if (import.meta.hot) {
   import.meta.hot.accept('./assets/loader.gif?url', (mod) => {
     if (mod?.default) {
-      setLoaderSources('img.loader-light', mod.default);
+      setLoaderSources('img.loader-border-light', mod.default);
     }
   });
   import.meta.hot.accept('./assets/loader-dark.gif?url', (mod) => {
     if (mod?.default) {
-      setLoaderSources('img.loader-dark', mod.default);
+      setLoaderSources('img.loader-border-dark', mod.default);
+    }
+  });
+  import.meta.hot.accept('./assets/loader-solid.gif?url', (mod) => {
+    if (mod?.default) {
+      setLoaderSources('img.loader-solid-light', mod.default);
+    }
+  });
+  import.meta.hot.accept('./assets/loader-solid-dark.gif?url', (mod) => {
+    if (mod?.default) {
+      setLoaderSources('img.loader-solid-dark', mod.default);
     }
   });
   import.meta.hot.accept('./assets/logo.svg?url', (mod) => {

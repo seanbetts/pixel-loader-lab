@@ -28,8 +28,10 @@ const options = {
 const pngInputPath = path.join(rootDir, 'src', 'assets', 'icon-source.png');
 const svgInputPath = path.join(rootDir, 'src', 'assets', 'logo.svg');
 const inputPath = fs.existsSync(pngInputPath) ? pngInputPath : svgInputPath;
-const outputPath = path.join(rootDir, 'src', 'assets', 'loader.gif');
-const outputDarkPath = path.join(rootDir, 'src', 'assets', 'loader-dark.gif');
+const outputBorderLight = path.join(rootDir, 'src', 'assets', 'loader.gif');
+const outputBorderDark = path.join(rootDir, 'src', 'assets', 'loader-dark.gif');
+const outputSolidLight = path.join(rootDir, 'src', 'assets', 'loader-solid.gif');
+const outputSolidDark = path.join(rootDir, 'src', 'assets', 'loader-solid-dark.gif');
 const tmpDir = path.join(rootDir, '.tmp', 'frames');
 const palettePath = path.join(rootDir, '.tmp', 'palette.png');
 
@@ -43,7 +45,7 @@ ensureFfmpeg();
 fs.rmSync(tmpDir, { recursive: true, force: true });
 fs.mkdirSync(tmpDir, { recursive: true });
 
-const offsets = [0, 1, 2, 2, 1, 0, -1, -1];
+const offsets = [0];
 
 const baseBuffer = await sharp(inputPath)
   .resize(options.grid, options.grid, {
@@ -54,18 +56,29 @@ const baseBuffer = await sharp(inputPath)
   .png()
   .toBuffer();
 
-const pixelatedLight = await renderPixelGrid(baseBuffer, options.grid, options.cell, false);
-const pixelatedDark = await renderPixelGrid(baseBuffer, options.grid, options.cell, true);
+const borderLight = await renderBordered(baseBuffer, options.grid, options.cell, false);
+const borderDark = await renderBordered(baseBuffer, options.grid, options.cell, true);
+const solidLight = await renderSolid(baseBuffer, options.grid, options.cell, false);
+const solidDark = await renderSolid(baseBuffer, options.grid, options.cell, true);
 
-await writeFrames(pixelatedLight, options, offsets, tmpDir);
-await buildGif(options, tmpDir, palettePath, outputPath);
+await writeFrames(borderLight, options, offsets, tmpDir);
+await buildGif(options, tmpDir, palettePath, outputBorderLight);
 
-await writeFrames(pixelatedDark, options, offsets, tmpDir);
-await buildGif(options, tmpDir, palettePath, outputDarkPath);
+await writeFrames(borderDark, options, offsets, tmpDir);
+await buildGif(options, tmpDir, palettePath, outputBorderDark);
+
+await writeFrames(solidLight, options, offsets, tmpDir);
+await buildGif(options, tmpDir, palettePath, outputSolidLight);
+
+await writeFrames(solidDark, options, offsets, tmpDir);
+await buildGif(options, tmpDir, palettePath, outputSolidDark);
 
 console.log(
-  `Generated ${path.relative(rootDir, outputPath)} and ${path.relative(rootDir, outputDarkPath)} ` +
-    `(${options.frames} frames @ ${options.ms}ms)`
+  `Generated loader variants (${options.frames} frames @ ${options.ms}ms):\n` +
+    `- ${path.relative(rootDir, outputBorderLight)}\n` +
+    `- ${path.relative(rootDir, outputBorderDark)}\n` +
+    `- ${path.relative(rootDir, outputSolidLight)}\n` +
+    `- ${path.relative(rootDir, outputSolidDark)}`
 );
 
 function parseArgs(argv) {
@@ -182,7 +195,15 @@ async function buildGif(options, framesDir, palettePath, outputPath) {
   }
 }
 
-async function renderPixelGrid(buffer, gridSize, cellSize, invertFill) {
+async function renderBordered(buffer, gridSize, cellSize, invertFill) {
+  return renderPixels(buffer, gridSize, cellSize, { invertFill, borderAlpha: 0 });
+}
+
+async function renderSolid(buffer, gridSize, cellSize, invertFill) {
+  return renderPixels(buffer, gridSize, cellSize, { invertFill, borderAlpha: null });
+}
+
+async function renderPixels(buffer, gridSize, cellSize, options) {
   const { data, info } = await sharp(buffer).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
   const outSize = gridSize * cellSize;
   const out = new Uint8ClampedArray(outSize * outSize * 4);
@@ -196,7 +217,7 @@ async function renderPixelGrid(buffer, gridSize, cellSize, invertFill) {
       const a = data[idx + 3];
       if (a === 0) continue;
 
-      if (invertFill) {
+      if (options.invertFill) {
         r = 255 - r;
         g = 255 - g;
         b = 255 - b;
@@ -208,7 +229,7 @@ async function renderPixelGrid(buffer, gridSize, cellSize, invertFill) {
           const or = r;
           const og = g;
           const ob = b;
-          const oa = isBorder ? 0 : a;
+          const oa = options.borderAlpha === null || !isBorder ? a : options.borderAlpha;
 
           const ox = x * cellSize + cx;
           const oy = y * cellSize + cy;
