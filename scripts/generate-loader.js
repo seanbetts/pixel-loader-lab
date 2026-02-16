@@ -396,7 +396,7 @@ async function writeBreakingTransitionFrames(
 }
 
 function buildCustomLoadingFrames24() {
-  const frames = [];
+  const buildFrames = [];
   const size = 24;
   const visibilityMask = iconMask24;
 
@@ -405,10 +405,10 @@ function buildCustomLoadingFrames24() {
     const row2 = '.' + '#'.repeat(k) + '.'.repeat(size - 1 - k);
     const row3 = '#'.repeat(k) + '.'.repeat(size - k);
     const rest = Array.from({ length: size - 3 }, () => '.'.repeat(size));
-    frames.push([row1, row2, row3, ...rest]);
+    buildFrames.push([row1, row2, row3, ...rest]);
   }
 
-  const grid = gridFromMask(frames[frames.length - 1]);
+  const grid = gridFromMask(buildFrames[buildFrames.length - 1]);
 
   // Complete the top edge with the same 3-pixel diagonal head.
   for (const x of [22, 23]) {
@@ -419,7 +419,7 @@ function buildCustomLoadingFrames24() {
     if (x === 23) {
       setIfInBounds(grid, x - 1, 2, '#');
     }
-    pushIfChanged(frames, maskFromGrid(grid), visibilityMask);
+    pushIfChanged(buildFrames, maskFromGrid(grid), visibilityMask);
   }
 
   // Turn the diagonal down the right edge (first steps).
@@ -427,7 +427,7 @@ function buildCustomLoadingFrames24() {
     setIfInBounds(grid, size - 1, y, '#');
     setIfInBounds(grid, size - 2, y - 1, '#');
     setIfInBounds(grid, size - 3, y - 2, '#');
-    pushIfChanged(frames, maskFromGrid(grid), visibilityMask);
+    pushIfChanged(buildFrames, maskFromGrid(grid), visibilityMask);
   }
 
   // Continue 3-pixel diagonal down the right edge.
@@ -435,7 +435,7 @@ function buildCustomLoadingFrames24() {
     setIfInBounds(grid, size - 1, y, '#');
     setIfInBounds(grid, size - 2, y - 1, '#');
     setIfInBounds(grid, size - 3, y - 2, '#');
-    pushIfChanged(frames, maskFromGrid(grid), visibilityMask);
+    pushIfChanged(buildFrames, maskFromGrid(grid), visibilityMask);
   }
 
   // Continue 3-pixel diagonal across the bottom edge, right to left.
@@ -458,7 +458,7 @@ function buildCustomLoadingFrames24() {
       setIfInBounds(grid, x, size - 2, '#');
     }
 
-    pushIfChanged(frames, maskFromGrid(grid), visibilityMask);
+    pushIfChanged(buildFrames, maskFromGrid(grid), visibilityMask);
   }
 
   // Sweep up the left edge and build the center bar bottom-up.
@@ -505,7 +505,7 @@ function buildCustomLoadingFrames24() {
       }
     }
 
-    pushIfChanged(frames, maskFromGrid(grid), visibilityMask);
+    pushIfChanged(buildFrames, maskFromGrid(grid), visibilityMask);
   }
 
   // Fill any remaining pixels (safety).
@@ -514,16 +514,32 @@ function buildCustomLoadingFrames24() {
       if (visibilityMask[y][x] !== '#') continue;
       if (grid[y][x] === '#') continue;
       grid[y][x] = '#';
-      pushIfChanged(frames, maskFromGrid(grid), visibilityMask);
+      pushIfChanged(buildFrames, maskFromGrid(grid), visibilityMask);
     }
   }
 
   const targetLength = 73;
-  while (frames.length < targetLength) {
-    frames.push(frames[frames.length - 1]);
+  while (buildFrames.length < targetLength) {
+    buildFrames.push(buildFrames[buildFrames.length - 1]);
   }
 
-  return frames;
+  const clearFrames = buildFrames.map((frame) => {
+    const cleared = [];
+    for (let y = 0; y < size; y += 1) {
+      let row = '';
+      for (let x = 0; x < size; x += 1) {
+        if (visibilityMask[y][x] !== '#') {
+          row += '.';
+        } else {
+          row += frame[y][x] === '#' ? '.' : '#';
+        }
+      }
+      cleared.push(row);
+    }
+    return cleared;
+  });
+
+  return clearFrames.concat(buildFrames);
 }
 
 function padFrame(lines) {
