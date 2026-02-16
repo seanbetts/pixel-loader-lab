@@ -87,13 +87,10 @@ ensureFfmpeg();
 const offsets = [0];
 const SPEED_MULT = 2;
 const SLOW_LOADING_FRAMES = 0;
+const TRANSITION_HOLD_FRAMES = 22;
 
 const customLoadingFrames24 = buildCustomLoadingFrames24();
-const expandedLoadingFrames24 = expandLoadingFrames(
-  customLoadingFrames24,
-  SLOW_LOADING_FRAMES,
-  SPEED_MULT
-);
+const expandedLoadingFrames24 = expandLoadingFrames(customLoadingFrames24, SLOW_LOADING_FRAMES, SPEED_MULT);
 
 const baseBuffer = await sharp(inputPath)
   .resize(options.grid, options.grid, {
@@ -266,7 +263,7 @@ function runCommand(cmd, args) {
 function totalLoopFrames(opts, loadingFrames, speedMult = 1) {
   const originalHoldFrames = 10 * speedMult;
   const transitionFrames = Math.max(1, opts.transition) * speedMult;
-  return originalHoldFrames + transitionFrames + loadingFrames + opts.frames;
+  return originalHoldFrames + transitionFrames + TRANSITION_HOLD_FRAMES + loadingFrames + opts.frames;
 }
 
 async function prepareFramesDir(framesDir) {
@@ -332,15 +329,19 @@ async function writeBreakingTransitionFrames(
   const transitionFrames = Math.max(1, options.transition) * speedMult;
   const idleFrames = Math.max(1, options.frames);
   const totalFrames = totalLoopFrames(options, customFrames24.length, speedMult);
+  const transitionHoldFrames = TRANSITION_HOLD_FRAMES;
 
   const pixelData = await sharp(pixelBuffer).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const finalBreakingFrame =
+    transitionHoldFrames > 0 ? await buildBreakingFrame(pixelData, options, 1) : null;
 
   for (let i = 0; i < totalFrames; i += 1) {
     const framePath = path.join(framesDir, `frame-${String(i).padStart(3, '0')}.png`);
 
     const breakStart = Math.max(0, originalHoldFrames - overlapFrames);
     const breakEnd = breakStart + transitionFrames;
-    const loadingStart = breakEnd;
+    const holdEnd = breakEnd + transitionHoldFrames;
+    const loadingStart = holdEnd;
     const loadingEnd = loadingStart + customFrames24.length;
 
     if (i < breakStart) {
@@ -369,6 +370,15 @@ async function writeBreakingTransitionFrames(
           .toFile(framePath);
       } else {
         await sharp(breakingFrame).png().toFile(framePath);
+      }
+      continue;
+    }
+
+    if (i < holdEnd) {
+      if (finalBreakingFrame) {
+        await sharp(finalBreakingFrame).png().toFile(framePath);
+      } else {
+        await sharp(pixelBuffer).png().toFile(framePath);
       }
       continue;
     }
