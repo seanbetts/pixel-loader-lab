@@ -292,7 +292,6 @@ function totalLoopFrames(opts, loadingFrames, speedMult = 1) {
     transitionFrames +
     TRANSITION_HOLD_FRAMES +
     loadingFrames +
-    opts.frames +
     endFadeFrames
   );
 }
@@ -358,7 +357,6 @@ async function writeBreakingTransitionFrames(
   const originalHoldFrames = 10 * speedMult;
   const overlapFrames = 2 * speedMult;
   const transitionFrames = Math.max(1, options.transition) * speedMult;
-  const idleFrames = Math.max(1, options.frames);
   const endFadeFrames = transitionFrames;
   const totalFrames = totalLoopFrames(options, customFrames24.length, speedMult);
   const transitionHoldFrames = TRANSITION_HOLD_FRAMES;
@@ -376,7 +374,7 @@ async function writeBreakingTransitionFrames(
     const holdEnd = breakEnd + transitionHoldFrames;
     const loadingStart = holdEnd;
     const loadingEnd = loadingStart + customFrames24.length;
-    const endFadeStart = loadingEnd + idleFrames;
+    const endFadeStart = loadingEnd;
     const endFadeEnd = endFadeStart + endFadeFrames;
 
     if (i < breakStart) {
@@ -663,7 +661,7 @@ function buildCustomLoadingFrames24() {
   const mergedOverlap = clearTail.map((frame, index) => mergeMasks(frame, buildHead[index] ?? frame));
 
   const loopFrames = clearLead.concat(mergedOverlap, buildRest);
-  return loopFrames.concat(loopFrames);
+  return loopFrames;
 }
 
 function padFrame(lines) {
