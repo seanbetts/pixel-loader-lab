@@ -344,6 +344,10 @@ function buildCustomLoadingFrames24() {
     setIfInBounds(grid, x, 0, '#');
     setIfInBounds(grid, x - 1, 1, '#');
     setIfInBounds(grid, x - 2, 2, '#');
+    // Keep the 3px diagonal thickness at the top-right corner.
+    if (x === 23) {
+      setIfInBounds(grid, x - 1, 2, '#');
+    }
     pushIfChanged(frames, maskFromGrid(grid), visibilityMask);
   }
 
@@ -376,6 +380,13 @@ function buildCustomLoadingFrames24() {
     setIfInBounds(grid, x, size - 1, '#');
     setIfInBounds(grid, x + 1, size - 2, '#');
     setIfInBounds(grid, x + 2, size - 3, '#');
+
+    // Seed the inner diagonal pixels at the bottom-right corner.
+    if (x === startX - 1) {
+      setIfInBounds(grid, x - 1, size - 1, '#');
+      setIfInBounds(grid, x, size - 2, '#');
+    }
+
     pushIfChanged(frames, maskFromGrid(grid), visibilityMask);
   }
 
@@ -389,6 +400,12 @@ function buildCustomLoadingFrames24() {
     setIfInBounds(grid, 0, y, '#');
     setIfInBounds(grid, 1, y + 1, '#');
     setIfInBounds(grid, 2, y + 2, '#');
+
+    // Seed the inner diagonal pixels at the bottom-left corner.
+    if (y === size - 3) {
+      setIfInBounds(grid, 0, y - 1, '#');
+      setIfInBounds(grid, 1, y, '#');
+    }
 
     // Build the center bar diagonally without adding extra frames.
     for (let i = 0; i < centerCols.length; i += 1) {
