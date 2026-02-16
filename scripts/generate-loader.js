@@ -555,7 +555,7 @@ function buildCustomLoadingFrames24() {
     return cleared;
   });
 
-  const applyGhosts = (frame, primary, secondary) => {
+  const applyGhosts = (frame, primary, secondary, overrideFilled) => {
     const grid = frame.map((row) => row.split(''));
     const apply = (coords, marker) => {
       if (!coords || coords.length === 0) return;
@@ -563,7 +563,11 @@ function buildCustomLoadingFrames24() {
         if (y < 0 || y >= size) continue;
         if (x < 0 || x >= size) continue;
         if (visibilityMask[y][x] !== '#') continue;
-        if (grid[y][x] !== '.') continue;
+        if (overrideFilled) {
+          if (grid[y][x] !== '#') continue;
+        } else if (grid[y][x] !== '.') {
+          continue;
+        }
         grid[y][x] = marker;
       }
     };
@@ -573,10 +577,10 @@ function buildCustomLoadingFrames24() {
   };
 
   const ghostedBuildFrames = buildFrames.map((frame, index) =>
-    applyGhosts(frame, buildDeltas[index + 1], buildDeltas[index + 2])
+    applyGhosts(frame, buildDeltas[index + 1], buildDeltas[index + 2], false)
   );
   const ghostedClearFrames = clearFrames.map((frame, index) =>
-    applyGhosts(frame, buildDeltas[index - 1], buildDeltas[index - 2])
+    applyGhosts(frame, buildDeltas[index], buildDeltas[index - 1], false)
   );
 
   const loopFrames = ghostedClearFrames.concat(ghostedBuildFrames);
