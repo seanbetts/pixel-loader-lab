@@ -523,6 +523,22 @@ function buildCustomLoadingFrames24() {
     buildFrames.push(buildFrames[buildFrames.length - 1]);
   }
 
+  const buildDeltas = buildFrames.map((frame, index) => {
+    const delta = [];
+    const prev = index > 0 ? buildFrames[index - 1] : null;
+    for (let y = 0; y < size; y += 1) {
+      const row = frame[y];
+      const prevRow = prev ? prev[y] : null;
+      for (let x = 0; x < size; x += 1) {
+        if (visibilityMask[y][x] !== '#') continue;
+        if (row[x] !== '#') continue;
+        if (prevRow && prevRow[x] === '#') continue;
+        delta.push([x, y]);
+      }
+    }
+    return delta;
+  });
+
   const clearFrames = buildFrames.map((frame) => {
     const cleared = [];
     for (let y = 0; y < size; y += 1) {
@@ -539,7 +555,31 @@ function buildCustomLoadingFrames24() {
     return cleared;
   });
 
-  const loopFrames = clearFrames.concat(buildFrames);
+  const applyGhosts = (frame, primary, secondary) => {
+    const grid = frame.map((row) => row.split(''));
+    const apply = (coords, marker) => {
+      if (!coords || coords.length === 0) return;
+      for (const [x, y] of coords) {
+        if (y < 0 || y >= size) continue;
+        if (x < 0 || x >= size) continue;
+        if (visibilityMask[y][x] !== '#') continue;
+        if (grid[y][x] !== '.') continue;
+        grid[y][x] = marker;
+      }
+    };
+    apply(primary, 'a');
+    apply(secondary, 'b');
+    return grid.map((row) => row.join(''));
+  };
+
+  const ghostedBuildFrames = buildFrames.map((frame, index) =>
+    applyGhosts(frame, buildDeltas[index + 1], buildDeltas[index + 2])
+  );
+  const ghostedClearFrames = clearFrames.map((frame, index) =>
+    applyGhosts(frame, buildDeltas[index - 1], buildDeltas[index - 2])
+  );
+
+  const loopFrames = ghostedClearFrames.concat(ghostedBuildFrames);
   const pauseFrame = buildFrames[buildFrames.length - 1];
   const pauseFrames = pauseFrame ? Array.from({ length: TRANSITION_HOLD_FRAMES }, () => pauseFrame) : [];
   return loopFrames.concat(pauseFrames, loopFrames);
@@ -632,7 +672,8 @@ async function renderCustomMaskFrame(pixelData, mask24, options) {
 
   for (let y = 0; y < 24; y += 1) {
     for (let x = 0; x < 24; x += 1) {
-      if (mask24[y][x] !== '#') continue;
+      const maskValue = mask24[y][x];
+      if (maskValue === '.') continue;
       const gx = x + offset;
       const gy = y + offset;
       const srcX = gx * options.cell;
@@ -644,9 +685,21 @@ async function renderCustomMaskFrame(pixelData, mask24, options) {
           const sy = srcY + cy;
           const sIdx = (sy * info.width + sx) * 4;
           if (data[sIdx + 3] === 0) continue;
-          out[sIdx] = data[sIdx];
-          out[sIdx + 1] = data[sIdx + 1];
-          out[sIdx + 2] = data[sIdx + 2];
+          if (maskValue === '#') {
+            out[sIdx] = data[sIdx];
+            out[sIdx + 1] = data[sIdx + 1];
+            out[sIdx + 2] = data[sIdx + 2];
+            out[sIdx + 3] = data[sIdx + 3];
+            continue;
+          }
+
+          const base = data[sIdx];
+          const background = 255 - base;
+          const mix = maskValue === 'a' ? 1 / 3 : 2 / 3;
+          const grey = Math.round(base * (1 - mix) + background * mix);
+          out[sIdx] = grey;
+          out[sIdx + 1] = grey;
+          out[sIdx + 2] = grey;
           out[sIdx + 3] = data[sIdx + 3];
         }
       }
