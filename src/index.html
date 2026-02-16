@@ -9,52 +9,113 @@
     <main class="page">
       <header class="header">
         <div class="title">Pixel Loader Lab</div>
-        <div class="subtitle">Quick preview for animated, pixelated loader output</div>
       </header>
 
-      <section class="panel light">
-        <div class="panel-title">Light background</div>
-        <div class="grid">
-          <div class="cell">
-            <img class="loader" alt="Pixel loader" style="width: 32px; height: 32px" />
-            <span class="label">32px</span>
+      <div class="layout">
+        <section class="panel light controls">
+          <div class="panel-title">Controls</div>
+          <div class="control">
+            <label class="control-label" for="gridSize">Grid size</label>
+            <select id="gridSize" class="control-input">
+              <option value="16">16</option>
+              <option value="24">24</option>
+              <option value="32" selected>32</option>
+              <option value="40">40</option>
+              <option value="48">48</option>
+            </select>
           </div>
-          <div class="cell">
-            <img class="loader" alt="Pixel loader" style="width: 64px; height: 64px" />
-            <span class="label">64px</span>
+          <div class="control">
+            <label class="control-label" for="frameCount">Frame count</label>
+            <select id="frameCount" class="control-input">
+              <option value="6">6</option>
+              <option value="8" selected>8</option>
+              <option value="10">10</option>
+              <option value="12">12</option>
+            </select>
           </div>
-          <div class="cell">
-            <img class="loader" alt="Pixel loader" style="width: 128px; height: 128px" />
-            <span class="label">128px</span>
+          <div class="control">
+            <label class="control-label" for="frameMs">Frame duration (ms)</label>
+            <select id="frameMs" class="control-input">
+              <option value="80">80</option>
+              <option value="100">100</option>
+              <option value="120" selected>120</option>
+              <option value="150">150</option>
+            </select>
           </div>
-          <div class="cell">
-            <img class="loader" alt="Pixel loader" style="width: 256px; height: 256px" />
-            <span class="label">256px</span>
+          <div class="controls-actions">
+            <button class="button" id="resetButton" type="button">Reset</button>
+            <div class="status" id="buildStatus" aria-live="polite">Idle</div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      <section class="panel dark">
-        <div class="panel-title">Dark background</div>
-        <div class="grid">
-          <div class="cell">
-            <img class="loader" alt="Pixel loader" style="width: 32px; height: 32px" />
-            <span class="label">32px</span>
-          </div>
-          <div class="cell">
-            <img class="loader" alt="Pixel loader" style="width: 64px; height: 64px" />
-            <span class="label">64px</span>
-          </div>
-          <div class="cell">
-            <img class="loader" alt="Pixel loader" style="width: 128px; height: 128px" />
-            <span class="label">128px</span>
-          </div>
-          <div class="cell">
-            <img class="loader" alt="Pixel loader" style="width: 256px; height: 256px" />
-            <span class="label">256px</span>
-          </div>
+        <div class="preview">
+          <section class="panel light">
+            <div class="panel-title">Original icon</div>
+            <div class="icon-row">
+              <div class="cell">
+                <img class="icon" alt="Original icon" style="width: 32px; height: 32px" />
+                <span class="label">32px</span>
+              </div>
+              <div class="cell">
+                <img class="icon" alt="Original icon" style="width: 64px; height: 64px" />
+                <span class="label">64px</span>
+              </div>
+              <div class="cell">
+                <img class="icon" alt="Original icon" style="width: 128px; height: 128px" />
+                <span class="label">128px</span>
+              </div>
+              <div class="cell">
+                <img class="icon" alt="Original icon" style="width: 256px; height: 256px" />
+                <span class="label">256px</span>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel light">
+            <div class="panel-title">Light background</div>
+            <div class="icon-row">
+              <div class="cell">
+                <img class="loader" alt="Pixel loader" style="width: 32px; height: 32px" />
+                <span class="label">32px</span>
+              </div>
+              <div class="cell">
+                <img class="loader" alt="Pixel loader" style="width: 64px; height: 64px" />
+                <span class="label">64px</span>
+              </div>
+              <div class="cell">
+                <img class="loader" alt="Pixel loader" style="width: 128px; height: 128px" />
+                <span class="label">128px</span>
+              </div>
+              <div class="cell">
+                <img class="loader" alt="Pixel loader" style="width: 256px; height: 256px" />
+                <span class="label">256px</span>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel dark">
+            <div class="panel-title">Dark background</div>
+            <div class="icon-row">
+              <div class="cell">
+                <img class="loader" alt="Pixel loader" style="width: 32px; height: 32px" />
+                <span class="label">32px</span>
+              </div>
+              <div class="cell">
+                <img class="loader" alt="Pixel loader" style="width: 64px; height: 64px" />
+                <span class="label">64px</span>
+              </div>
+              <div class="cell">
+                <img class="loader" alt="Pixel loader" style="width: 128px; height: 128px" />
+                <span class="label">128px</span>
+              </div>
+              <div class="cell">
+                <img class="loader" alt="Pixel loader" style="width: 256px; height: 256px" />
+                <span class="label">256px</span>
+              </div>
+            </div>
+          </section>
         </div>
-      </section>
+      </div>
     </main>
 
     <script type="module" src="./preview.js"></script>

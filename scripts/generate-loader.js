@@ -37,6 +37,7 @@ if (!fs.existsSync(inputPath)) {
 
 ensureFfmpeg();
 
+fs.rmSync(tmpDir, { recursive: true, force: true });
 fs.mkdirSync(tmpDir, { recursive: true });
 
 const offsets = [0, 1, 2, 2, 1, 0, -1, -1];
@@ -84,6 +85,8 @@ if (options.palette && options.palette > 0) {
     '-vf',
     `palettegen=max_colors=${options.palette}`,
     '-frames:v',
+    '1',
+    '-update',
     '1',
     palettePath,
   ]);
