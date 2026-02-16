@@ -539,7 +539,10 @@ function buildCustomLoadingFrames24() {
     return cleared;
   });
 
-  return clearFrames.concat(buildFrames);
+  const loopFrames = clearFrames.concat(buildFrames);
+  const pauseFrame = buildFrames[buildFrames.length - 1];
+  const pauseFrames = pauseFrame ? Array.from({ length: TRANSITION_HOLD_FRAMES }, () => pauseFrame) : [];
+  return loopFrames.concat(pauseFrames, loopFrames);
 }
 
 function padFrame(lines) {
