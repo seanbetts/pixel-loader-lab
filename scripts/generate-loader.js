@@ -86,11 +86,17 @@ ensureFfmpeg();
 
 const offsets = [0];
 const SPEED_MULT = 2;
-const SLOW_LOADING_FRAMES = 0;
 const TRANSITION_HOLD_FRAMES = 22;
+const LOADING_SPEED_SWITCH_FRAME = 58;
+const ORIGINAL_HOLD_FRAMES = 10 * SPEED_MULT;
+const OVERLAP_FRAMES = 2 * SPEED_MULT;
+const TRANSITION_FRAMES = Math.max(1, options.transition) * SPEED_MULT;
+const loadingStartFrames =
+  Math.max(0, ORIGINAL_HOLD_FRAMES - OVERLAP_FRAMES) + TRANSITION_FRAMES + TRANSITION_HOLD_FRAMES;
 
 const customLoadingFrames24 = buildCustomLoadingFrames24();
-const expandedLoadingFrames24 = expandLoadingFrames(customLoadingFrames24, SLOW_LOADING_FRAMES, SPEED_MULT);
+const loadingSwitchIndex = Math.max(0, LOADING_SPEED_SWITCH_FRAME - loadingStartFrames);
+const expandedLoadingFrames24 = accelerateLoadingFrames(customLoadingFrames24, loadingSwitchIndex, 2);
 
 const baseBuffer = await sharp(inputPath)
   .resize(options.grid, options.grid, {
@@ -243,6 +249,22 @@ function expandLoadingFrames(frames, slowCount, multiplier) {
   for (let i = 0; i < frames.length; i += 1) {
     const repeat = i < cutoff ? multiplier : 1;
     for (let r = 0; r < repeat; r += 1) {
+      out.push(frames[i]);
+    }
+  }
+  return out;
+}
+
+function accelerateLoadingFrames(frames, switchIndex, factor = 2) {
+  if (!Number.isFinite(switchIndex) || switchIndex < 0) switchIndex = 0;
+  if (factor <= 1) return frames;
+  const out = [];
+  for (let i = 0; i < frames.length; i += 1) {
+    if (i < switchIndex) {
+      out.push(frames[i]);
+      continue;
+    }
+    if (((i - switchIndex) % factor) === 0) {
       out.push(frames[i]);
     }
   }
