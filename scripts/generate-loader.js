@@ -10,11 +10,14 @@ const rootDir = path.resolve(__dirname, '..');
 
 const defaults = {
   grid: 32,
-  frames: 8,
+  frames: 16,
   ms: 80,
   palette: 32,
   cell: 8,
   transition: 10,
+  clearFrames: 8,
+  rebuildFrames: 12,
+  barDelay: 0.55,
 };
 
 const args = parseArgs(process.argv.slice(2));
@@ -25,6 +28,9 @@ const options = {
   palette: args.palette === undefined ? defaults.palette : toInt(args.palette, defaults.palette),
   cell: defaults.cell,
   transition: toInt(args.transition, defaults.transition),
+  clearFrames: defaults.clearFrames,
+  rebuildFrames: defaults.rebuildFrames,
+  barDelay: defaults.barDelay,
 };
 
 const pngInputPath = path.join(rootDir, 'src', 'assets', 'icon-source.png');
@@ -38,6 +44,7 @@ const outputBorderLightTransition = path.join(rootDir, 'src', 'assets', 'loader-
 const outputBorderDarkTransition = path.join(rootDir, 'src', 'assets', 'loader-transition-dark.gif');
 const outputSolidLightTransition = path.join(rootDir, 'src', 'assets', 'loader-solid-transition.gif');
 const outputSolidDarkTransition = path.join(rootDir, 'src', 'assets', 'loader-solid-transition-dark.gif');
+const framesRoot = path.join(rootDir, 'src', 'assets', 'frames');
 const tmpDir = path.join(rootDir, '.tmp', 'frames');
 const palettePath = path.join(rootDir, '.tmp', 'palette.png');
 
@@ -91,21 +98,27 @@ await writeFrames(solidDark, options, offsets, tmpDir);
 await buildGif(options, tmpDir, palettePath, outputSolidDark);
 
 if (options.transition > 0) {
-  await prepareFramesDir(tmpDir);
-  await writeBreakingTransitionFrames(originalBuffer, borderLight, options, tmpDir);
-  await buildGif({ ...options, frames: options.transition + options.frames }, tmpDir, palettePath, outputBorderLightTransition);
+  const totalFrames = totalLoopFrames(options);
 
   await prepareFramesDir(tmpDir);
-  await writeBreakingTransitionFrames(originalDarkBuffer, borderDark, options, tmpDir);
-  await buildGif({ ...options, frames: options.transition + options.frames }, tmpDir, palettePath, outputBorderDarkTransition);
+  await writeBreakingTransitionFrames(originalBuffer, borderLight, baseBuffer, options, tmpDir);
+  await buildGif({ ...options, frames: totalFrames }, tmpDir, palettePath, outputBorderLightTransition);
+  await exportFrames(tmpDir, path.join(framesRoot, 'border-light'), totalFrames, options);
 
   await prepareFramesDir(tmpDir);
-  await writeBreakingTransitionFrames(originalBuffer, solidLight, options, tmpDir);
-  await buildGif({ ...options, frames: options.transition + options.frames }, tmpDir, palettePath, outputSolidLightTransition);
+  await writeBreakingTransitionFrames(originalDarkBuffer, borderDark, baseBuffer, options, tmpDir);
+  await buildGif({ ...options, frames: totalFrames }, tmpDir, palettePath, outputBorderDarkTransition);
+  await exportFrames(tmpDir, path.join(framesRoot, 'border-dark'), totalFrames, options);
 
   await prepareFramesDir(tmpDir);
-  await writeBreakingTransitionFrames(originalDarkBuffer, solidDark, options, tmpDir);
-  await buildGif({ ...options, frames: options.transition + options.frames }, tmpDir, palettePath, outputSolidDarkTransition);
+  await writeBreakingTransitionFrames(originalBuffer, solidLight, baseBuffer, options, tmpDir);
+  await buildGif({ ...options, frames: totalFrames }, tmpDir, palettePath, outputSolidLightTransition);
+  await exportFrames(tmpDir, path.join(framesRoot, 'solid-light'), totalFrames, options);
+
+  await prepareFramesDir(tmpDir);
+  await writeBreakingTransitionFrames(originalDarkBuffer, solidDark, baseBuffer, options, tmpDir);
+  await buildGif({ ...options, frames: totalFrames }, tmpDir, palettePath, outputSolidDarkTransition);
+  await exportFrames(tmpDir, path.join(framesRoot, 'solid-dark'), totalFrames, options);
 }
 
 console.log(
@@ -159,9 +172,39 @@ function runCommand(cmd, args) {
   }
 }
 
+function totalLoopFrames(opts) {
+  const originalHoldFrames = 10;
+  return (
+    originalHoldFrames +
+    opts.transition +
+    opts.clearFrames +
+    opts.rebuildFrames +
+    opts.frames
+  );
+}
+
 async function prepareFramesDir(framesDir) {
   fs.rmSync(framesDir, { recursive: true, force: true });
   fs.mkdirSync(framesDir, { recursive: true });
+}
+
+async function exportFrames(framesDir, outDir, frameCount, options) {
+  fs.rmSync(outDir, { recursive: true, force: true });
+  fs.mkdirSync(outDir, { recursive: true });
+
+  for (let i = 0; i < frameCount; i += 1) {
+    const name = `frame-${String(i).padStart(3, '0')}.png`;
+    fs.copyFileSync(path.join(framesDir, name), path.join(outDir, name));
+  }
+
+  const manifest = {
+    frames: frameCount,
+    ms: options.ms,
+    width: options.grid * options.cell,
+    height: options.grid * options.cell,
+  };
+
+  fs.writeFileSync(path.join(outDir, 'manifest.json'), JSON.stringify(manifest, null, 2));
 }
 
 async function writeFrames(buffer, options, offsets, framesDir) {
@@ -188,21 +231,31 @@ async function writeFrames(buffer, options, offsets, framesDir) {
   }
 }
 
-async function writeBreakingTransitionFrames(originalBuffer, pixelBuffer, options, framesDir) {
+async function writeBreakingTransitionFrames(originalBuffer, pixelBuffer, baseBuffer, options, framesDir) {
   const outputSize = options.grid * options.cell;
   const originalHoldFrames = 10;
   const overlapFrames = 2;
   const transitionFrames = Math.max(1, options.transition);
-  const idleFrames = Math.max(1, options.frames);
-  const totalFrames = originalHoldFrames + transitionFrames + idleFrames;
+  const clearFrames = Math.max(1, options.clearFrames);
+  const rebuildFrames = Math.max(1, options.rebuildFrames);
+  const totalFrames = totalLoopFrames(options);
 
   const pixelData = await sharp(pixelBuffer).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const maskData = await sharp(baseBuffer).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const mask = buildMask(maskData, options.grid);
+  const angleMap = buildAngleMap(options.grid);
+  const barColumns = detectBarColumns(mask, options.grid);
 
   for (let i = 0; i < totalFrames; i += 1) {
     const framePath = path.join(framesDir, `frame-${String(i).padStart(3, '0')}.png`);
 
     const breakStart = Math.max(0, originalHoldFrames - overlapFrames);
     const breakEnd = breakStart + transitionFrames;
+    const clearStart = breakEnd;
+    const clearEnd = clearStart + clearFrames;
+    const rebuildStart = clearEnd;
+    const rebuildEnd = rebuildStart + rebuildFrames;
+    const step = 3 / options.grid;
 
     if (i < breakStart) {
       await sharp(originalBuffer).png().toFile(framePath);
@@ -233,8 +286,137 @@ async function writeBreakingTransitionFrames(originalBuffer, pixelBuffer, option
       continue;
     }
 
+    if (i < clearEnd) {
+      const progress = Math.min(1, (i - clearStart + 1) * step);
+      const frame = await renderLoadingFrame(pixelData, mask, angleMap, barColumns, options, {
+        phase: 'clear',
+        progress,
+      });
+      await sharp(frame).png().toFile(framePath);
+      continue;
+    }
+
+    if (i < rebuildEnd) {
+      const progress = Math.min(1, (i - rebuildStart + 1) * step);
+      const frame = await renderLoadingFrame(pixelData, mask, angleMap, barColumns, options, {
+        phase: 'rebuild',
+        progress,
+      });
+      await sharp(frame).png().toFile(framePath);
+      continue;
+    }
+
     await sharp(pixelBuffer).png().toFile(framePath);
   }
+}
+
+function buildMask(maskData, gridSize) {
+  const { data, info } = maskData;
+  const mask = Array.from({ length: gridSize }, () => Array(gridSize).fill(false));
+  for (let y = 0; y < info.height; y += 1) {
+    for (let x = 0; x < info.width; x += 1) {
+      const idx = (y * info.width + x) * 4;
+      const a = data[idx + 3];
+      mask[y][x] = a > 0;
+    }
+  }
+  return mask;
+}
+
+function buildAngleMap(gridSize) {
+  const cx = (gridSize - 1) / 2;
+  const cy = (gridSize - 1) / 2;
+  const startAngle = (-3 * Math.PI) / 4; // top-left
+  const map = Array.from({ length: gridSize }, () => Array(gridSize).fill(0));
+
+  for (let y = 0; y < gridSize; y += 1) {
+    for (let x = 0; x < gridSize; x += 1) {
+      const dx = x - cx;
+      const dy = y - cy;
+      const angle = Math.atan2(dy, dx);
+      let delta = angle - startAngle;
+      if (delta < 0) delta += Math.PI * 2;
+      map[y][x] = delta / (Math.PI * 2);
+    }
+  }
+
+  return map;
+}
+
+function detectBarColumns(mask, gridSize) {
+  const start = Math.floor(gridSize * 0.35);
+  const end = Math.ceil(gridSize * 0.65);
+  let bestCol = Math.floor(gridSize / 2);
+  let bestCount = -1;
+
+  for (let x = start; x <= end; x += 1) {
+    let count = 0;
+    for (let y = 0; y < gridSize; y += 1) {
+      if (mask[y][x]) count += 1;
+    }
+    if (count > bestCount) {
+      bestCount = count;
+      bestCol = x;
+    }
+  }
+
+  const columns = new Set([bestCol, bestCol - 1, bestCol + 1].filter((x) => x >= 0 && x < gridSize));
+  return columns;
+}
+
+async function renderLoadingFrame(pixelData, mask, angleMap, barColumns, options, { phase, progress }) {
+  const { data, info } = pixelData;
+  const out = new Uint8ClampedArray(info.width * info.height * 4);
+  const gridSize = options.grid;
+  const cell = options.cell;
+
+  const barDelay = options.barDelay;
+  const barProgress = clamp((progress - barDelay) / (1 - barDelay), 0, 1);
+  const barThreshold = gridSize - 1 - Math.floor(barProgress * (gridSize - 1));
+
+  for (let y = 0; y < gridSize; y += 1) {
+    for (let x = 0; x < gridSize; x += 1) {
+      if (!mask[y][x]) continue;
+
+      const angle = angleMap[y][x];
+      let visible = false;
+
+      if (phase === 'clear') {
+        visible = angle >= progress;
+      } else {
+        visible = angle <= progress;
+      }
+
+      if (phase === 'rebuild' && barColumns.has(x)) {
+        visible = barProgress > 0 && y >= barThreshold;
+      }
+
+      if (!visible) continue;
+
+      const srcX = x * cell;
+      const srcY = y * cell;
+
+      for (let cy = 0; cy < cell; cy += 1) {
+        for (let cx = 0; cx < cell; cx += 1) {
+          const sx = srcX + cx;
+          const sy = srcY + cy;
+          const sIdx = (sy * info.width + sx) * 4;
+          const dIdx = sIdx;
+
+          if (data[sIdx + 3] === 0) continue;
+
+          out[dIdx] = data[sIdx];
+          out[dIdx + 1] = data[sIdx + 1];
+          out[dIdx + 2] = data[sIdx + 2];
+          out[dIdx + 3] = data[sIdx + 3];
+        }
+      }
+    }
+  }
+
+  return sharp(out, { raw: { width: info.width, height: info.height, channels: 4 } })
+    .png()
+    .toBuffer();
 }
 
 async function buildBreakingFrame(pixelData, options, progress) {
@@ -343,17 +525,18 @@ async function buildGif(options, framesDir, palettePath, outputPath) {
 }
 
 async function renderBordered(buffer, gridSize, cellSize, invertFill) {
-  return renderPixels(buffer, gridSize, cellSize, { invertFill, borderAlpha: 0 });
+  return renderPixels(buffer, gridSize, cellSize, { invertFill, borderAlpha: 0, binary: true });
 }
 
 async function renderSolid(buffer, gridSize, cellSize, invertFill) {
-  return renderPixels(buffer, gridSize, cellSize, { invertFill, borderAlpha: null });
+  return renderPixels(buffer, gridSize, cellSize, { invertFill, borderAlpha: null, binary: true });
 }
 
 async function renderPixels(buffer, gridSize, cellSize, options) {
   const { data, info } = await sharp(buffer).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
   const outSize = gridSize * cellSize;
   const out = new Uint8ClampedArray(outSize * outSize * 4);
+  const alphaThreshold = 128;
 
   for (let y = 0; y < info.height; y += 1) {
     for (let x = 0; x < info.width; x += 1) {
@@ -362,13 +545,20 @@ async function renderPixels(buffer, gridSize, cellSize, options) {
       let g = data[idx + 1];
       let b = data[idx + 2];
       const a = data[idx + 3];
-      if (a === 0) continue;
+      if (a < alphaThreshold) continue;
 
-      if (options.invertFill) {
+      if (options.binary) {
+        const v = options.invertFill ? 255 : 0;
+        r = v;
+        g = v;
+        b = v;
+      } else if (options.invertFill) {
         r = 255 - r;
         g = 255 - g;
         b = 255 - b;
       }
+
+      const alphaOut = 255;
 
       for (let cy = 0; cy < cellSize; cy += 1) {
         for (let cx = 0; cx < cellSize; cx += 1) {
@@ -376,7 +566,7 @@ async function renderPixels(buffer, gridSize, cellSize, options) {
           const or = r;
           const og = g;
           const ob = b;
-          const oa = options.borderAlpha === null || !isBorder ? a : options.borderAlpha;
+          const oa = options.borderAlpha === null || !isBorder ? alphaOut : options.borderAlpha;
 
           const ox = x * cellSize + cx;
           const oy = y * cellSize + cy;
@@ -390,5 +580,7 @@ async function renderPixels(buffer, gridSize, cellSize, options) {
     }
   }
 
-  return sharp(out, { raw: { width: outSize, height: outSize, channels: 4 } }).png().toBuffer();
+  return sharp(out, { raw: { width: outSize, height: outSize, channels: 4 } })
+    .png()
+    .toBuffer();
 }

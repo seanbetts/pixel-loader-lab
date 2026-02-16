@@ -19,14 +19,17 @@
             <select id="frameCount" class="control-input">
               <option value="4">4</option>
               <option value="6">6</option>
-              <option value="8" selected>8</option>
+              <option value="8">8</option>
               <option value="10">10</option>
               <option value="12">12</option>
-              <option value="16">16</option>
+              <option value="16" selected>16</option>
+              <option value="20">20</option>
+              <option value="24">24</option>
             </select>
           </div>
           <div class="controls-actions">
             <button class="button" id="resetButton" type="button">Reset</button>
+            <button class="button ghost" id="stepButton" type="button">Step</button>
             <div class="status" id="buildStatus" aria-live="polite">Idle</div>
           </div>
         </section>
@@ -58,19 +61,19 @@
             <div class="panel-title">Light background</div>
             <div class="icon-row">
               <div class="cell">
-                <img class="loader loader-solid-light" alt="Pixel loader" style="width: 32px; height: 32px" />
+                <img class="loader" data-variant="solid-light" data-size="32" alt="Pixel loader" style="width: 32px; height: 32px" />
                 <span class="label">32px</span>
               </div>
               <div class="cell">
-                <img class="loader loader-solid-light" alt="Pixel loader" style="width: 64px; height: 64px" />
+                <img class="loader" data-variant="solid-light" data-size="64" alt="Pixel loader" style="width: 64px; height: 64px" />
                 <span class="label">64px</span>
               </div>
               <div class="cell">
-                <img class="loader loader-solid-light" alt="Pixel loader" style="width: 128px; height: 128px" />
+                <img class="loader" data-variant="solid-light" data-size="128" alt="Pixel loader" style="width: 128px; height: 128px" />
                 <span class="label">128px</span>
               </div>
               <div class="cell">
-                <img class="loader loader-border-light" alt="Pixel loader" style="width: 256px; height: 256px" />
+                <img class="loader" data-variant="border-light" data-size="256" alt="Pixel loader" style="width: 256px; height: 256px" />
                 <span class="label">256px</span>
               </div>
             </div>
@@ -80,19 +83,19 @@
             <div class="panel-title">Dark background</div>
             <div class="icon-row">
               <div class="cell">
-                <img class="loader loader-solid-dark" alt="Pixel loader" style="width: 32px; height: 32px" />
+                <img class="loader" data-variant="solid-dark" data-size="32" alt="Pixel loader" style="width: 32px; height: 32px" />
                 <span class="label">32px</span>
               </div>
               <div class="cell">
-                <img class="loader loader-solid-dark" alt="Pixel loader" style="width: 64px; height: 64px" />
+                <img class="loader" data-variant="solid-dark" data-size="64" alt="Pixel loader" style="width: 64px; height: 64px" />
                 <span class="label">64px</span>
               </div>
               <div class="cell">
-                <img class="loader loader-solid-dark" alt="Pixel loader" style="width: 128px; height: 128px" />
+                <img class="loader" data-variant="solid-dark" data-size="128" alt="Pixel loader" style="width: 128px; height: 128px" />
                 <span class="label">128px</span>
               </div>
               <div class="cell">
-                <img class="loader loader-border-dark" alt="Pixel loader" style="width: 256px; height: 256px" />
+                <img class="loader" data-variant="border-dark" data-size="256" alt="Pixel loader" style="width: 256px; height: 256px" />
                 <span class="label">256px</span>
               </div>
             </div>
