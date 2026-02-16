@@ -25,7 +25,7 @@ const getControlValues = () => ({
 
 const setBuildingState = (state, message) => {
   const statusEl = document.querySelector('#buildStatus');
-  const controls = document.querySelectorAll('.control-input, #resetButton, #stepButton');
+  const controls = document.querySelectorAll('.control-input, #resetButton, #stepButton, #prevButton');
   controls.forEach((el) => {
     el.disabled = state === 'building';
   });
@@ -134,12 +134,25 @@ let totalFrames = 0;
 let cachedManifests = null;
 let cachedCanvases = null;
 
+const updateReadout = () => {
+  const readout = document.querySelector('#frameReadout');
+  const slider = document.querySelector('#frameSlider');
+  if (slider) {
+    slider.max = String(Math.max(0, totalFrames - 1));
+    slider.value = String(currentFrame);
+  }
+  if (readout) {
+    readout.textContent = `Frame ${currentFrame + 1} / ${Math.max(1, totalFrames)}`;
+  }
+};
+
 const startAuto = (manifests) => {
   stopAuto();
   const ms = manifests[Object.keys(manifests)[0]].ms;
   autoTimer = setInterval(async () => {
     currentFrame = (currentFrame + 1) % totalFrames;
     await renderAll(cachedCanvases, manifests, currentFrame);
+    updateReadout();
   }, ms);
 };
 
@@ -150,10 +163,19 @@ const stopAuto = () => {
   }
 };
 
-const stepFrame = async () => {
+const stepFrame = async (direction) => {
   stopAuto();
-  currentFrame = (currentFrame + 1) % totalFrames;
+  const delta = direction === 'prev' ? -1 : 1;
+  currentFrame = (currentFrame + delta + totalFrames) % totalFrames;
   await renderAll(cachedCanvases, cachedManifests, currentFrame);
+  updateReadout();
+};
+
+const setFrameFromSlider = async (value) => {
+  stopAuto();
+  currentFrame = Math.min(Math.max(0, Number(value)), totalFrames - 1);
+  await renderAll(cachedCanvases, cachedManifests, currentFrame);
+  updateReadout();
 };
 
 const buildLoader = async () => {
@@ -173,6 +195,7 @@ const buildLoader = async () => {
     currentFrame = 0;
     cachedCanvases = getCanvases();
     await renderAll(cachedCanvases, cachedManifests, currentFrame);
+    updateReadout();
     startAuto(cachedManifests);
   } catch (error) {
     setBuildingState('error', error?.message);
@@ -197,11 +220,24 @@ const boot = async () => {
   totalFrames = cachedManifests[Object.keys(cachedManifests)[0]].frames;
   cachedCanvases = getCanvases();
   await renderAll(cachedCanvases, cachedManifests, currentFrame);
+  updateReadout();
   startAuto(cachedManifests);
 
   const stepButton = document.querySelector('#stepButton');
   if (stepButton) {
-    stepButton.addEventListener('click', stepFrame);
+    stepButton.addEventListener('click', () => stepFrame('next'));
+  }
+
+  const prevButton = document.querySelector('#prevButton');
+  if (prevButton) {
+    prevButton.addEventListener('click', () => stepFrame('prev'));
+  }
+
+  const slider = document.querySelector('#frameSlider');
+  if (slider) {
+    slider.addEventListener('input', (event) => {
+      setFrameFromSlider(event.target.value);
+    });
   }
 };
 

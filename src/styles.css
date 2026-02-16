@@ -211,6 +211,11 @@ canvas.loader {
   font-weight: 600;
 }
 
+.frame-readout {
+  font-size: 12px;
+  color: rgba(26, 26, 26, 0.6);
+}
+
 @media (max-width: 900px) {
   .layout {
     grid-template-columns: 1fr;

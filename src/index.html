@@ -29,8 +29,14 @@
           </div>
           <div class="controls-actions">
             <button class="button" id="resetButton" type="button">Reset</button>
-            <button class="button ghost" id="stepButton" type="button">Step</button>
+            <button class="button ghost" id="prevButton" type="button">Prev</button>
+            <button class="button ghost" id="stepButton" type="button">Next</button>
             <div class="status" id="buildStatus" aria-live="polite">Idle</div>
+          </div>
+          <div class="control">
+            <label class="control-label" for="frameSlider">Frame</label>
+            <input id="frameSlider" class="control-input" type="range" min="0" max="0" value="0" />
+            <div class="frame-readout" id="frameReadout">Frame 1 / 1</div>
           </div>
         </section>
 

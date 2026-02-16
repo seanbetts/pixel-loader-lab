@@ -33,6 +33,35 @@ const options = {
   barDelay: defaults.barDelay,
 };
 
+const iconMask24 = [
+  '..####################..',
+  '.######################.',
+  '########################',
+  '###....##............###',
+  '###....##............###',
+  '###....##............###',
+  '###....##............###',
+  '###....##............###',
+  '###....##............###',
+  '###....##............###',
+  '###....##............###',
+  '###....##............###',
+  '###....##............###',
+  '###....##............###',
+  '###....##............###',
+  '###....##............###',
+  '###....##............###',
+  '###....##............###',
+  '###....##............###',
+  '###....##............###',
+  '###....##............###',
+  '########################',
+  '.######################.',
+  '..####################..',
+];
+
+const useIconMask = true;
+
 const pngInputPath = path.join(rootDir, 'src', 'assets', 'icon-source.png');
 const svgInputPath = path.join(rootDir, 'src', 'assets', 'logo.svg');
 const inputPath = fs.existsSync(pngInputPath) ? pngInputPath : svgInputPath;
@@ -56,6 +85,7 @@ if (!fs.existsSync(inputPath)) {
 ensureFfmpeg();
 
 const offsets = [0];
+const customLoadingFrames24 = buildCustomLoadingFrames24();
 
 const baseBuffer = await sharp(inputPath)
   .resize(options.grid, options.grid, {
@@ -76,10 +106,18 @@ const originalBuffer = await sharp(inputPath)
   .toBuffer();
 const originalDarkBuffer = await sharp(originalBuffer).negate({ alpha: false }).png().toBuffer();
 
-const borderLight = await renderBordered(baseBuffer, options.grid, options.cell, false);
-const borderDark = await renderBordered(baseBuffer, options.grid, options.cell, true);
-const solidLight = await renderSolid(baseBuffer, options.grid, options.cell, false);
-const solidDark = await renderSolid(baseBuffer, options.grid, options.cell, true);
+const borderLight = useIconMask
+  ? await renderMaskBuffer(iconMask24, options.grid, options.cell, false, 0)
+  : await renderBordered(baseBuffer, options.grid, options.cell, false);
+const borderDark = useIconMask
+  ? await renderMaskBuffer(iconMask24, options.grid, options.cell, true, 0)
+  : await renderBordered(baseBuffer, options.grid, options.cell, true);
+const solidLight = useIconMask
+  ? await renderMaskBuffer(iconMask24, options.grid, options.cell, false, null)
+  : await renderSolid(baseBuffer, options.grid, options.cell, false);
+const solidDark = useIconMask
+  ? await renderMaskBuffer(iconMask24, options.grid, options.cell, true, null)
+  : await renderSolid(baseBuffer, options.grid, options.cell, true);
 
 await prepareFramesDir(tmpDir);
 await writeFrames(borderLight, options, offsets, tmpDir);
@@ -98,25 +136,25 @@ await writeFrames(solidDark, options, offsets, tmpDir);
 await buildGif(options, tmpDir, palettePath, outputSolidDark);
 
 if (options.transition > 0) {
-  const totalFrames = totalLoopFrames(options);
+  const totalFrames = totalLoopFrames(options, customLoadingFrames24.length);
 
   await prepareFramesDir(tmpDir);
-  await writeBreakingTransitionFrames(originalBuffer, borderLight, baseBuffer, options, tmpDir);
+  await writeBreakingTransitionFrames(originalBuffer, borderLight, baseBuffer, options, tmpDir, customLoadingFrames24);
   await buildGif({ ...options, frames: totalFrames }, tmpDir, palettePath, outputBorderLightTransition);
   await exportFrames(tmpDir, path.join(framesRoot, 'border-light'), totalFrames, options);
 
   await prepareFramesDir(tmpDir);
-  await writeBreakingTransitionFrames(originalDarkBuffer, borderDark, baseBuffer, options, tmpDir);
+  await writeBreakingTransitionFrames(originalDarkBuffer, borderDark, baseBuffer, options, tmpDir, customLoadingFrames24);
   await buildGif({ ...options, frames: totalFrames }, tmpDir, palettePath, outputBorderDarkTransition);
   await exportFrames(tmpDir, path.join(framesRoot, 'border-dark'), totalFrames, options);
 
   await prepareFramesDir(tmpDir);
-  await writeBreakingTransitionFrames(originalBuffer, solidLight, baseBuffer, options, tmpDir);
+  await writeBreakingTransitionFrames(originalBuffer, solidLight, baseBuffer, options, tmpDir, customLoadingFrames24);
   await buildGif({ ...options, frames: totalFrames }, tmpDir, palettePath, outputSolidLightTransition);
   await exportFrames(tmpDir, path.join(framesRoot, 'solid-light'), totalFrames, options);
 
   await prepareFramesDir(tmpDir);
-  await writeBreakingTransitionFrames(originalDarkBuffer, solidDark, baseBuffer, options, tmpDir);
+  await writeBreakingTransitionFrames(originalDarkBuffer, solidDark, baseBuffer, options, tmpDir, customLoadingFrames24);
   await buildGif({ ...options, frames: totalFrames }, tmpDir, palettePath, outputSolidDarkTransition);
   await exportFrames(tmpDir, path.join(framesRoot, 'solid-dark'), totalFrames, options);
 }
@@ -172,15 +210,9 @@ function runCommand(cmd, args) {
   }
 }
 
-function totalLoopFrames(opts) {
+function totalLoopFrames(opts, loadingFrames) {
   const originalHoldFrames = 10;
-  return (
-    originalHoldFrames +
-    opts.transition +
-    opts.clearFrames +
-    opts.rebuildFrames +
-    opts.frames
-  );
+  return originalHoldFrames + opts.transition + loadingFrames + opts.frames;
 }
 
 async function prepareFramesDir(framesDir) {
@@ -231,31 +263,23 @@ async function writeFrames(buffer, options, offsets, framesDir) {
   }
 }
 
-async function writeBreakingTransitionFrames(originalBuffer, pixelBuffer, baseBuffer, options, framesDir) {
+async function writeBreakingTransitionFrames(originalBuffer, pixelBuffer, baseBuffer, options, framesDir, customFrames24) {
   const outputSize = options.grid * options.cell;
   const originalHoldFrames = 10;
   const overlapFrames = 2;
   const transitionFrames = Math.max(1, options.transition);
-  const clearFrames = Math.max(1, options.clearFrames);
-  const rebuildFrames = Math.max(1, options.rebuildFrames);
-  const totalFrames = totalLoopFrames(options);
+  const idleFrames = Math.max(1, options.frames);
+  const totalFrames = totalLoopFrames(options, customFrames24.length);
 
   const pixelData = await sharp(pixelBuffer).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-  const maskData = await sharp(baseBuffer).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-  const mask = buildMask(maskData, options.grid);
-  const angleMap = buildAngleMap(options.grid);
-  const barColumns = detectBarColumns(mask, options.grid);
 
   for (let i = 0; i < totalFrames; i += 1) {
     const framePath = path.join(framesDir, `frame-${String(i).padStart(3, '0')}.png`);
 
     const breakStart = Math.max(0, originalHoldFrames - overlapFrames);
     const breakEnd = breakStart + transitionFrames;
-    const clearStart = breakEnd;
-    const clearEnd = clearStart + clearFrames;
-    const rebuildStart = clearEnd;
-    const rebuildEnd = rebuildStart + rebuildFrames;
-    const step = 3 / options.grid;
+    const loadingStart = breakEnd;
+    const loadingEnd = loadingStart + customFrames24.length;
 
     if (i < breakStart) {
       await sharp(originalBuffer).png().toFile(framePath);
@@ -286,22 +310,10 @@ async function writeBreakingTransitionFrames(originalBuffer, pixelBuffer, baseBu
       continue;
     }
 
-    if (i < clearEnd) {
-      const progress = Math.min(1, (i - clearStart + 1) * step);
-      const frame = await renderLoadingFrame(pixelData, mask, angleMap, barColumns, options, {
-        phase: 'clear',
-        progress,
-      });
-      await sharp(frame).png().toFile(framePath);
-      continue;
-    }
-
-    if (i < rebuildEnd) {
-      const progress = Math.min(1, (i - rebuildStart + 1) * step);
-      const frame = await renderLoadingFrame(pixelData, mask, angleMap, barColumns, options, {
-        phase: 'rebuild',
-        progress,
-      });
+    if (i < loadingEnd) {
+      const frameIndex = i - loadingStart;
+      const mask24 = customFrames24[frameIndex];
+      const frame = await renderCustomMaskFrame(pixelData, mask24, options);
       await sharp(frame).png().toFile(framePath);
       continue;
     }
@@ -310,105 +322,146 @@ async function writeBreakingTransitionFrames(originalBuffer, pixelBuffer, baseBu
   }
 }
 
-function buildMask(maskData, gridSize) {
-  const { data, info } = maskData;
-  const mask = Array.from({ length: gridSize }, () => Array(gridSize).fill(false));
-  for (let y = 0; y < info.height; y += 1) {
-    for (let x = 0; x < info.width; x += 1) {
-      const idx = (y * info.width + x) * 4;
-      const a = data[idx + 3];
-      mask[y][x] = a > 0;
-    }
-  }
-  return mask;
-}
+function buildCustomLoadingFrames24() {
+  const frames = [];
+  const size = 24;
+  const visibilityMask = iconMask24;
+  const blank = Array.from({ length: size }, () => '.'.repeat(size));
+  frames.push(blank);
 
-function buildAngleMap(gridSize) {
-  const cx = (gridSize - 1) / 2;
-  const cy = (gridSize - 1) / 2;
-  const startAngle = (-3 * Math.PI) / 4; // top-left
-  const map = Array.from({ length: gridSize }, () => Array(gridSize).fill(0));
-
-  for (let y = 0; y < gridSize; y += 1) {
-    for (let x = 0; x < gridSize; x += 1) {
-      const dx = x - cx;
-      const dy = y - cy;
-      const angle = Math.atan2(dy, dx);
-      let delta = angle - startAngle;
-      if (delta < 0) delta += Math.PI * 2;
-      map[y][x] = delta / (Math.PI * 2);
-    }
+  for (let k = 1; k <= 20; k += 1) {
+    const row1 = '..' + '#'.repeat(k) + '.'.repeat(size - 2 - k);
+    const row2 = '.' + '#'.repeat(k) + '.'.repeat(size - 1 - k);
+    const row3 = '#'.repeat(k) + '.'.repeat(size - k);
+    const rest = Array.from({ length: size - 3 }, () => '.'.repeat(size));
+    frames.push([row1, row2, row3, ...rest]);
   }
 
-  return map;
-}
+  const grid = gridFromMask(frames[frames.length - 1]);
 
-function detectBarColumns(mask, gridSize) {
-  const start = Math.floor(gridSize * 0.35);
-  const end = Math.ceil(gridSize * 0.65);
-  let bestCol = Math.floor(gridSize / 2);
-  let bestCount = -1;
-
-  for (let x = start; x <= end; x += 1) {
-    let count = 0;
-    for (let y = 0; y < gridSize; y += 1) {
-      if (mask[y][x]) count += 1;
-    }
-    if (count > bestCount) {
-      bestCount = count;
-      bestCol = x;
-    }
+  // Complete the top edge with the same 3-pixel diagonal head.
+  for (const x of [22, 23]) {
+    setIfInBounds(grid, x, 0, '#');
+    setIfInBounds(grid, x - 1, 1, '#');
+    setIfInBounds(grid, x - 2, 2, '#');
+    pushIfChanged(frames, maskFromGrid(grid), visibilityMask);
   }
 
-  const columns = new Set([bestCol, bestCol - 1, bestCol + 1].filter((x) => x >= 0 && x < gridSize));
-  return columns;
+  // Turn the diagonal down the right edge (first steps).
+  for (const y of [1, 2, 3]) {
+    setIfInBounds(grid, size - 1, y, '#');
+    setIfInBounds(grid, size - 2, y - 1, '#');
+    setIfInBounds(grid, size - 3, y - 2, '#');
+    pushIfChanged(frames, maskFromGrid(grid), visibilityMask);
+  }
+
+  // Continue 3-pixel diagonal down the right edge.
+  for (let y = 0; y < size; y += 1) {
+    setIfInBounds(grid, size - 1, y, '#');
+    setIfInBounds(grid, size - 2, y - 1, '#');
+    setIfInBounds(grid, size - 3, y - 2, '#');
+    pushIfChanged(frames, maskFromGrid(grid), visibilityMask);
+  }
+
+  // Continue 3-pixel diagonal across the bottom edge, right to left.
+  let startX = size - 1;
+  for (let x = size - 1; x >= 0; x -= 1) {
+    if (grid[size - 1][x] === '#') {
+      startX = x - 1;
+    } else {
+      break;
+    }
+  }
+  for (let x = startX; x >= 0; x -= 1) {
+    setIfInBounds(grid, x, size - 1, '#');
+    setIfInBounds(grid, x + 1, size - 2, '#');
+    setIfInBounds(grid, x + 2, size - 3, '#');
+    pushIfChanged(frames, maskFromGrid(grid), visibilityMask);
+  }
+
+  const targetLength = 73;
+  while (frames.length < targetLength) {
+    frames.push(frames[frames.length - 1]);
+  }
+
+  return frames;
 }
 
-async function renderLoadingFrame(pixelData, mask, angleMap, barColumns, options, { phase, progress }) {
+function padFrame(lines) {
+  const size = 24;
+  const rows = lines.map((line) => line.padEnd(size, '.').slice(0, size));
+  while (rows.length < size) {
+    rows.push('.'.repeat(size));
+  }
+  return rows;
+}
+
+function gridFromMask(mask) {
+  return mask.map((row) => row.split(''));
+}
+
+function maskFromGrid(grid) {
+  return grid.map((row) => row.join(''));
+}
+
+function pushIfChanged(frames, frame, visibilityMask) {
+  const last = frames[frames.length - 1];
+  if (!last || hasVisibleDiff(last, frame, visibilityMask)) {
+    frames.push(frame);
+  }
+}
+
+function hasVisibleDiff(a, b, visibilityMask) {
+  if (!visibilityMask) return !framesEqual(a, b);
+  for (let y = 0; y < visibilityMask.length; y += 1) {
+    const maskRow = visibilityMask[y];
+    const rowA = a[y];
+    const rowB = b[y];
+    for (let x = 0; x < maskRow.length; x += 1) {
+      if (maskRow[x] !== '#') continue;
+      if (rowA[x] !== rowB[x]) return true;
+    }
+  }
+  return false;
+}
+
+function framesEqual(a, b) {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i += 1) {
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
+}
+
+function setIfInBounds(grid, x, y, value) {
+  if (y < 0 || y >= grid.length) return;
+  if (x < 0 || x >= grid[y].length) return;
+  grid[y][x] = value;
+}
+
+async function renderCustomMaskFrame(pixelData, mask24, options) {
   const { data, info } = pixelData;
   const out = new Uint8ClampedArray(info.width * info.height * 4);
-  const gridSize = options.grid;
-  const cell = options.cell;
+  const offset = (options.grid - 24) / 2;
 
-  const barDelay = options.barDelay;
-  const barProgress = clamp((progress - barDelay) / (1 - barDelay), 0, 1);
-  const barThreshold = gridSize - 1 - Math.floor(barProgress * (gridSize - 1));
+  for (let y = 0; y < 24; y += 1) {
+    for (let x = 0; x < 24; x += 1) {
+      if (mask24[y][x] !== '#') continue;
+      const gx = x + offset;
+      const gy = y + offset;
+      const srcX = gx * options.cell;
+      const srcY = gy * options.cell;
 
-  for (let y = 0; y < gridSize; y += 1) {
-    for (let x = 0; x < gridSize; x += 1) {
-      if (!mask[y][x]) continue;
-
-      const angle = angleMap[y][x];
-      let visible = false;
-
-      if (phase === 'clear') {
-        visible = angle >= progress;
-      } else {
-        visible = angle <= progress;
-      }
-
-      if (phase === 'rebuild' && barColumns.has(x)) {
-        visible = barProgress > 0 && y >= barThreshold;
-      }
-
-      if (!visible) continue;
-
-      const srcX = x * cell;
-      const srcY = y * cell;
-
-      for (let cy = 0; cy < cell; cy += 1) {
-        for (let cx = 0; cx < cell; cx += 1) {
+      for (let cy = 0; cy < options.cell; cy += 1) {
+        for (let cx = 0; cx < options.cell; cx += 1) {
           const sx = srcX + cx;
           const sy = srcY + cy;
           const sIdx = (sy * info.width + sx) * 4;
-          const dIdx = sIdx;
-
           if (data[sIdx + 3] === 0) continue;
-
-          out[dIdx] = data[sIdx];
-          out[dIdx + 1] = data[sIdx + 1];
-          out[dIdx + 2] = data[sIdx + 2];
-          out[dIdx + 3] = data[sIdx + 3];
+          out[sIdx] = data[sIdx];
+          out[sIdx + 1] = data[sIdx + 1];
+          out[sIdx + 2] = data[sIdx + 2];
+          out[sIdx + 3] = data[sIdx + 3];
         }
       }
     }
@@ -530,6 +583,41 @@ async function renderBordered(buffer, gridSize, cellSize, invertFill) {
 
 async function renderSolid(buffer, gridSize, cellSize, invertFill) {
   return renderPixels(buffer, gridSize, cellSize, { invertFill, borderAlpha: null, binary: true });
+}
+
+async function renderMaskBuffer(mask24, gridSize, cellSize, invertFill, borderAlpha) {
+  const outSize = gridSize * cellSize;
+  const out = new Uint8ClampedArray(outSize * outSize * 4);
+  const fill = invertFill ? 255 : 0;
+  const offset = Math.floor((gridSize - mask24.length) / 2);
+
+  for (let y = 0; y < mask24.length; y += 1) {
+    for (let x = 0; x < mask24[y].length; x += 1) {
+      if (mask24[y][x] !== '#') continue;
+      const gx = x + offset;
+      const gy = y + offset;
+      const baseX = gx * cellSize;
+      const baseY = gy * cellSize;
+
+      for (let cy = 0; cy < cellSize; cy += 1) {
+        for (let cx = 0; cx < cellSize; cx += 1) {
+          const isBorder = cx === 0 || cy === 0 || cx === cellSize - 1 || cy === cellSize - 1;
+          const alphaOut = borderAlpha === null || !isBorder ? 255 : borderAlpha;
+          const ox = baseX + cx;
+          const oy = baseY + cy;
+          const oidx = (oy * outSize + ox) * 4;
+          out[oidx] = fill;
+          out[oidx + 1] = fill;
+          out[oidx + 2] = fill;
+          out[oidx + 3] = alphaOut;
+        }
+      }
+    }
+  }
+
+  return sharp(out, { raw: { width: outSize, height: outSize, channels: 4 } })
+    .png()
+    .toBuffer();
 }
 
 async function renderPixels(buffer, gridSize, cellSize, options) {
