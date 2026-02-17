@@ -88,12 +88,19 @@ body {
 }
 
 .icon-row {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  display: flex;
+  flex-wrap: nowrap;
   gap: 12px;
+  align-items: flex-end;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 4px;
 }
 
 .cell {
+  --cell-grow: 1;
+  flex: var(--cell-grow) 1 0;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -101,6 +108,26 @@ body {
   padding: 12px 10px;
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.35);
+}
+
+.cell[data-size="16"] {
+  --cell-grow: 1;
+}
+
+.cell[data-size="24"] {
+  --cell-grow: 1.1;
+}
+
+.cell[data-size="44"] {
+  --cell-grow: 1.25;
+}
+
+.cell[data-size="128"] {
+  --cell-grow: 1.8;
+}
+
+.cell[data-size="256"] {
+  --cell-grow: 2.4;
 }
 
 .panel.dark .cell {
