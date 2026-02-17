@@ -229,18 +229,24 @@ const resetControls = () => {
 const exportGif = async () => {
   setBuildingState('building');
   try {
-    const optimizeResponse = await fetch('/__optimize-loader', { method: 'POST' });
-    if (!optimizeResponse.ok) {
-      const payload = await optimizeResponse.json().catch(() => ({}));
-      throw new Error(payload.error || 'Optimize failed');
+    const exportResponse = await fetch('/__export-loader-zip', { method: 'POST' });
+    if (!exportResponse.ok) {
+      const payload = await exportResponse.json().catch(() => ({}));
+      throw new Error(payload.error || 'Export failed');
     }
-    const optimized = await optimizeResponse.json();
+    const optimized = await exportResponse.json();
     const base = window.location.origin;
     const cacheBust = Date.now();
-    const lightName = optimized.light || 'loader-transition.gif';
-    const darkName = optimized.dark || 'loader-transition-dark.gif';
-    const lightUrl = `${base}/assets/${lightName}?t=${cacheBust}`;
-    const darkUrl = `${base}/assets/${darkName}?t=${cacheBust}`;
+    const solidLightName = optimized.solidLight || 'loader-solid-transition.gif';
+    const borderedLightName = optimized.borderedLight || 'loader-transition.gif';
+    const solidDarkName = optimized.solidDark || 'loader-solid-transition-dark.gif';
+    const borderedDarkName = optimized.borderedDark || 'loader-transition-dark.gif';
+    const solidLightUrl = `${base}/assets/${solidLightName}?t=${cacheBust}`;
+    const borderedLightUrl = `${base}/assets/${borderedLightName}?t=${cacheBust}`;
+    const solidDarkUrl = `${base}/assets/${solidDarkName}?t=${cacheBust}`;
+    const borderedDarkUrl = `${base}/assets/${borderedDarkName}?t=${cacheBust}`;
+    const zipName = optimized.zip || 'loading-icons.zip';
+    const zipUrl = `${base}/assets/${zipName}?t=${cacheBust}`;
     const exportHtml = `<!doctype html>
 <html lang="en">
   <head>
@@ -270,8 +276,7 @@ const exportGif = async () => {
         margin-top: 16px;
       }
       .page-actions .download-all {
-        width: 100%;
-        max-width: 532px;
+        width: auto;
         justify-content: center;
       }
       .panel {
@@ -290,9 +295,32 @@ const exportGif = async () => {
         margin-bottom: 12px;
       }
       img {
-        width: 256px;
-        height: 256px;
         image-rendering: pixelated;
+      }
+      .size-44 {
+        width: 44px;
+        height: 44px;
+      }
+      .size-128 {
+        width: 128px;
+        height: 128px;
+      }
+      .samples {
+        display: flex;
+        align-items: flex-end;
+        gap: 20px;
+      }
+      .sample {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 6px;
+      }
+      .size-label {
+        font-size: 11px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        opacity: 0.7;
       }
       .download-all {
         display: inline-flex;
@@ -306,12 +334,6 @@ const exportGif = async () => {
         font-size: 12px;
         background: #fff;
       }
-      .actions {
-        margin-top: 12px;
-        display: flex;
-        gap: 12px;
-        flex-wrap: wrap;
-      }
       .note {
         font-size: 12px;
         opacity: 0.7;
@@ -323,31 +345,34 @@ const exportGif = async () => {
     <div class="wrap">
       <div class="panel">
         <div class="title">Light background</div>
-        <img src="${lightUrl}" alt="Pixel loader light" />
+        <div class="samples">
+          <div class="sample" data-name="loading-44-light.gif">
+            <img class="size-44" src="${solidLightUrl}" alt="Loading 44 light" />
+            <div class="size-label">44px</div>
+          </div>
+          <div class="sample" data-name="loading-128-light.gif">
+            <img class="size-128" src="${borderedLightUrl}" alt="Loading 128 light" />
+            <div class="size-label">128px</div>
+          </div>
+        </div>
       </div>
       <div class="panel dark">
         <div class="title">Dark background</div>
-        <img src="${darkUrl}" alt="Pixel loader dark" />
+        <div class="samples">
+          <div class="sample" data-name="loading-44-dark.gif">
+            <img class="size-44" src="${solidDarkUrl}" alt="Loading 44 dark" />
+            <div class="size-label">44px</div>
+          </div>
+          <div class="sample" data-name="loading-128-dark.gif">
+            <img class="size-128" src="${borderedDarkUrl}" alt="Loading 128 dark" />
+            <div class="size-label">128px</div>
+          </div>
+        </div>
       </div>
     </div>
     <div class="page-actions">
-      <a class="download-all" href="${lightUrl}" download="pixel-loader-light.gif">Download both GIFs</a>
+      <a class="download-all" href="${zipUrl}" download="loading-icons.zip">Download GIFs</a>
     </div>
-    <script>
-      document.querySelector('.download-all')?.addEventListener('click', (event) => {
-        event.preventDefault();
-        const click = (href, name) => {
-          const link = document.createElement('a');
-          link.href = href;
-          link.download = name;
-          document.body.appendChild(link);
-          link.click();
-          link.remove();
-        };
-        click('${lightUrl}', 'pixel-loader-light.gif');
-        click('${darkUrl}', 'pixel-loader-dark.gif');
-      });
-    </script>
   </body>
 </html>`;
     const exportBlob = new Blob([exportHtml], { type: 'text/html' });
