@@ -11,7 +11,8 @@ const rootDir = path.resolve(__dirname, '..');
 const defaults = {
   grid: 32,
   frames: 16,
-  ms: 1000 / 42,
+  standardMs: 1000 / 42,
+  borderedMs: 48,
   palette: 32,
   cell: 8,
   transition: 10,
@@ -24,7 +25,6 @@ const args = parseArgs(process.argv.slice(2));
 const options = {
   grid: defaults.grid,
   frames: toInt(args.frames, defaults.frames),
-  ms: defaults.ms,
   palette: args.palette === undefined ? defaults.palette : toInt(args.palette, defaults.palette),
   cell: defaults.cell,
   transition: toInt(args.transition, defaults.transition),
@@ -32,6 +32,8 @@ const options = {
   rebuildFrames: defaults.rebuildFrames,
   barDelay: defaults.barDelay,
 };
+const standardTiming = { ...options, ms: defaults.standardMs };
+const borderedTiming = { ...options, ms: defaults.borderedMs };
 
 const iconMask24 = [
   '..####################..',
@@ -132,20 +134,20 @@ const solidDark = useIconMask
   : await renderSolid(baseBuffer, options.grid, options.cell, true);
 
 await prepareFramesDir(tmpDir);
-await writeFrames(borderLight, options, offsets, tmpDir);
-await buildGif(options, tmpDir, palettePath, outputBorderLight);
+await writeFrames(borderLight, borderedTiming, offsets, tmpDir);
+await buildGif(borderedTiming, tmpDir, palettePath, outputBorderLight);
 
 await prepareFramesDir(tmpDir);
-await writeFrames(borderDark, options, offsets, tmpDir);
-await buildGif(options, tmpDir, palettePath, outputBorderDark);
+await writeFrames(borderDark, borderedTiming, offsets, tmpDir);
+await buildGif(borderedTiming, tmpDir, palettePath, outputBorderDark);
 
 await prepareFramesDir(tmpDir);
-await writeFrames(solidLight, options, offsets, tmpDir);
-await buildGif(options, tmpDir, palettePath, outputSolidLight);
+await writeFrames(solidLight, standardTiming, offsets, tmpDir);
+await buildGif(standardTiming, tmpDir, palettePath, outputSolidLight);
 
 await prepareFramesDir(tmpDir);
-await writeFrames(solidDark, options, offsets, tmpDir);
-await buildGif(options, tmpDir, palettePath, outputSolidDark);
+await writeFrames(solidDark, standardTiming, offsets, tmpDir);
+await buildGif(standardTiming, tmpDir, palettePath, outputSolidDark);
 
 if (options.transition > 0) {
   const totalFrames = totalLoopFrames(options, expandedLoadingFrames24.length, SPEED_MULT);
@@ -160,8 +162,8 @@ if (options.transition > 0) {
     expandedLoadingFrames24,
     SPEED_MULT
   );
-  await buildGif({ ...options, frames: totalFrames }, tmpDir, palettePath, outputBorderLightTransition);
-  await exportFrames(tmpDir, path.join(framesRoot, 'border-light'), totalFrames, options);
+  await buildGif({ ...borderedTiming, frames: totalFrames }, tmpDir, palettePath, outputBorderLightTransition);
+  await exportFrames(tmpDir, path.join(framesRoot, 'border-light'), totalFrames, borderedTiming);
 
   await prepareFramesDir(tmpDir);
   await writeBreakingTransitionFrames(
@@ -173,8 +175,8 @@ if (options.transition > 0) {
     expandedLoadingFrames24,
     SPEED_MULT
   );
-  await buildGif({ ...options, frames: totalFrames }, tmpDir, palettePath, outputBorderDarkTransition);
-  await exportFrames(tmpDir, path.join(framesRoot, 'border-dark'), totalFrames, options);
+  await buildGif({ ...borderedTiming, frames: totalFrames }, tmpDir, palettePath, outputBorderDarkTransition);
+  await exportFrames(tmpDir, path.join(framesRoot, 'border-dark'), totalFrames, borderedTiming);
 
   await prepareFramesDir(tmpDir);
   await writeBreakingTransitionFrames(
@@ -186,8 +188,8 @@ if (options.transition > 0) {
     expandedLoadingFrames24,
     SPEED_MULT
   );
-  await buildGif({ ...options, frames: totalFrames }, tmpDir, palettePath, outputSolidLightTransition);
-  await exportFrames(tmpDir, path.join(framesRoot, 'solid-light'), totalFrames, options);
+  await buildGif({ ...standardTiming, frames: totalFrames }, tmpDir, palettePath, outputSolidLightTransition);
+  await exportFrames(tmpDir, path.join(framesRoot, 'solid-light'), totalFrames, standardTiming);
 
   await prepareFramesDir(tmpDir);
   await writeBreakingTransitionFrames(
@@ -199,16 +201,18 @@ if (options.transition > 0) {
     expandedLoadingFrames24,
     SPEED_MULT
   );
-  await buildGif({ ...options, frames: totalFrames }, tmpDir, palettePath, outputSolidDarkTransition);
-  await exportFrames(tmpDir, path.join(framesRoot, 'solid-dark'), totalFrames, options);
+  await buildGif({ ...standardTiming, frames: totalFrames }, tmpDir, palettePath, outputSolidDarkTransition);
+  await exportFrames(tmpDir, path.join(framesRoot, 'solid-dark'), totalFrames, standardTiming);
 }
 
 console.log(
-  `Generated loader variants (${options.frames} frames @ ${options.ms}ms):\n` +
+  `Generated loader variants (${options.frames} frames):\n` +
     `- ${path.relative(rootDir, outputBorderLight)}\n` +
     `- ${path.relative(rootDir, outputBorderDark)}\n` +
     `- ${path.relative(rootDir, outputSolidLight)}\n` +
     `- ${path.relative(rootDir, outputSolidDark)}\n` +
+    `Standard ms: ${standardTiming.ms}\n` +
+    `Bordered ms: ${borderedTiming.ms}\n` +
     `Transition frames: ${options.transition}`
 );
 
