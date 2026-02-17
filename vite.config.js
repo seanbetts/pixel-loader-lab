@@ -54,6 +54,12 @@ const buildLoaderPlugin = () => {
         })
     );
 
+  const enqueue = (task) => {
+    const run = queue.catch(() => {}).then(task);
+    queue = run.catch(() => {});
+    return run;
+  };
+
   return {
     name: 'pixel-loader-build',
     configureServer(server) {
@@ -73,9 +79,7 @@ const buildLoaderPlugin = () => {
         if (frames) args.push('--frames', frames);
         if (transition) args.push('--transition', transition);
 
-        queue = queue.then(() => runBuild(args));
-
-        queue
+        enqueue(() => runBuild(args))
           .then(() => {
             res.setHeader('Content-Type', 'application/json');
             res.end(JSON.stringify({ ok: true }));
@@ -94,9 +98,7 @@ const buildLoaderPlugin = () => {
           return;
         }
 
-        queue = queue.then(() => runOptimize());
-
-        queue
+        enqueue(() => runOptimize())
           .then(() => {
             res.setHeader('Content-Type', 'application/json');
             res.end(

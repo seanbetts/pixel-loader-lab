@@ -126,6 +126,7 @@ const renderAll = async (canvases, manifests, frame) => {
 };
 
 let autoTimer;
+let autoRunToken = 0;
 let currentFrame = 0;
 let totalFrames = 0;
 let cachedManifests = null;
@@ -146,16 +147,33 @@ const updateReadout = () => {
 const startAuto = (manifests) => {
   stopAuto();
   const ms = manifests[Object.keys(manifests)[0]].ms;
-  autoTimer = setInterval(async () => {
+  const runToken = ++autoRunToken;
+
+  const tick = async () => {
+    if (runToken !== autoRunToken || totalFrames <= 0) return;
     currentFrame = (currentFrame + 1) % totalFrames;
-    await renderAll(cachedCanvases, manifests, currentFrame);
-    updateReadout();
-  }, ms);
+    try {
+      await renderAll(cachedCanvases, manifests, currentFrame);
+      updateReadout();
+    } catch (error) {
+      console.error('Failed to render frame', error);
+      stopAuto();
+      setBuildingState('error', 'Render failed');
+      return;
+    }
+
+    if (runToken === autoRunToken) {
+      autoTimer = setTimeout(tick, ms);
+    }
+  };
+
+  autoTimer = setTimeout(tick, ms);
 };
 
 const stopAuto = () => {
+  autoRunToken += 1;
   if (autoTimer) {
-    clearInterval(autoTimer);
+    clearTimeout(autoTimer);
     autoTimer = undefined;
   }
 };
@@ -348,12 +366,18 @@ const exportGif = async () => {
 
 const boot = async () => {
   setIconSources(iconSvgUrl);
-  cachedManifests = await loadManifests();
-  totalFrames = cachedManifests[Object.keys(cachedManifests)[0]].frames;
-  cachedCanvases = getCanvases();
-  await renderAll(cachedCanvases, cachedManifests, currentFrame);
-  updateReadout();
-  startAuto(cachedManifests);
+  try {
+    cachedManifests = await loadManifests();
+    totalFrames = cachedManifests[Object.keys(cachedManifests)[0]].frames;
+    cachedCanvases = getCanvases();
+    await renderAll(cachedCanvases, cachedManifests, currentFrame);
+    updateReadout();
+    startAuto(cachedManifests);
+  } catch (error) {
+    setBuildingState('error', error?.message || 'Failed to load loader frames');
+    console.error('Failed to initialize preview', error);
+    return;
+  }
 
   const stepButton = document.querySelector('#stepButton');
   if (stepButton) {
