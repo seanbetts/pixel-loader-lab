@@ -11,7 +11,7 @@ const rootDir = path.resolve(__dirname, '..');
 const defaults = {
   grid: 32,
   frames: 16,
-  ms: 40,
+  ms: 1000 / 42,
   palette: 32,
   cell: 8,
   transition: 10,
