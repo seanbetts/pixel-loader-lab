@@ -132,6 +132,8 @@ const solidLight = useIconMask
 const solidDark = useIconMask
   ? await renderMaskBuffer(iconMask24, options.grid, options.cell, true, null)
   : await renderSolid(baseBuffer, options.grid, options.cell, true);
+const borderBackdropLight = await buildMutedBackdrop(borderLight);
+const borderBackdropDark = await buildMutedBackdrop(borderDark);
 
 await prepareFramesDir(tmpDir);
 await writeFrames(borderLight, borderedTiming, offsets, tmpDir);
@@ -160,7 +162,8 @@ if (options.transition > 0) {
     options,
     tmpDir,
     expandedLoadingFrames24,
-    SPEED_MULT
+    SPEED_MULT,
+    borderBackdropLight
   );
   await buildGif({ ...borderedTiming, frames: totalFrames }, tmpDir, palettePath, outputBorderLightTransition);
   await exportFrames(tmpDir, path.join(framesRoot, 'border-light'), totalFrames, borderedTiming);
@@ -173,7 +176,8 @@ if (options.transition > 0) {
     options,
     tmpDir,
     expandedLoadingFrames24,
-    SPEED_MULT
+    SPEED_MULT,
+    borderBackdropDark
   );
   await buildGif({ ...borderedTiming, frames: totalFrames }, tmpDir, palettePath, outputBorderDarkTransition);
   await exportFrames(tmpDir, path.join(framesRoot, 'border-dark'), totalFrames, borderedTiming);
@@ -355,7 +359,8 @@ async function writeBreakingTransitionFrames(
   options,
   framesDir,
   customFrames24,
-  speedMult = 1
+  speedMult = 1,
+  loadingBackdropBuffer = null
 ) {
   const outputSize = options.grid * options.cell;
   const originalHoldFrames = 10 * speedMult;
@@ -424,7 +429,24 @@ async function writeBreakingTransitionFrames(
       const frameIndex = i - loadingStart;
       const mask24 = customFrames24[frameIndex];
       const frame = await renderCustomMaskFrame(pixelData, mask24, options);
-      await sharp(frame).png().toFile(framePath);
+      if (loadingBackdropBuffer) {
+        await sharp({
+          create: {
+            width: outputSize,
+            height: outputSize,
+            channels: 4,
+            background: { r: 0, g: 0, b: 0, alpha: 0 },
+          },
+        })
+          .composite([
+            { input: loadingBackdropBuffer, blend: 'over', opacity: 1 },
+            { input: frame, blend: 'over', opacity: 1 },
+          ])
+          .png()
+          .toFile(framePath);
+      } else {
+        await sharp(frame).png().toFile(framePath);
+      }
       continue;
     }
 
@@ -837,6 +859,28 @@ async function buildBreakingFrame(pixelData, options, progress) {
   }
 
   return sharp(out, { raw: { width: outSize, height: outSize, channels: 4 } })
+    .png()
+    .toBuffer();
+}
+
+async function buildMutedBackdrop(buffer) {
+  const { data, info } = await sharp(buffer).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const out = new Uint8ClampedArray(data.length);
+
+  for (let i = 0; i < data.length; i += 4) {
+    const alpha = data[i + 3];
+    if (alpha === 0) continue;
+    const base = data[i];
+    const background = 255 - base;
+    const mix = 2 / 3;
+    const grey = Math.round(base * (1 - mix) + background * mix);
+    out[i] = grey;
+    out[i + 1] = grey;
+    out[i + 2] = grey;
+    out[i + 3] = Math.round(alpha * 0.65);
+  }
+
+  return sharp(out, { raw: { width: info.width, height: info.height, channels: 4 } })
     .png()
     .toBuffer();
 }
