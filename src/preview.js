@@ -5,10 +5,18 @@ const DEFAULTS = {
   transition: 10,
 };
 
+let activeAssetVersion = Date.now();
+
 const withCacheBust = (url) => {
   if (url.startsWith('data:')) return url;
   const separator = url.includes('?') ? '&' : '?';
   return `${url}${separator}t=${Date.now()}`;
+};
+
+const withAssetVersion = (url) => {
+  if (url.startsWith('data:')) return url;
+  const separator = url.includes('?') ? '&' : '?';
+  return `${url}${separator}t=${activeAssetVersion}`;
 };
 
 const setIconSources = (url) => {
@@ -42,7 +50,7 @@ const setBuildingState = (state, message) => {
 };
 
 const getManifest = async (variant) => {
-  const url = withCacheBust(`/assets/frames/${variant}/manifest.json`);
+  const url = withAssetVersion(`/assets/frames/${variant}/manifest.json`);
   const response = await fetch(url);
   if (!response.ok) throw new Error(`Missing manifest for ${variant}`);
   return response.json();
@@ -92,23 +100,39 @@ const getCanvases = () => {
 
 const loadFrameImage = async (variant, frame) => {
   const frameName = `frame-${String(frame).padStart(3, '0')}.png`;
-  const frameUrl = withCacheBust(`/assets/frames/${variant}/${frameName}`);
+  const frameUrl = withAssetVersion(`/assets/frames/${variant}/${frameName}`);
   const image = new Image();
   image.src = frameUrl;
   await image.decode();
   return image;
 };
 
-const renderAll = async (canvases, manifests, frame) => {
-  const cache = {};
+const frameCache = new Map();
+
+const frameCacheKey = (variant, frame) => `${variant}:${frame}`;
+
+const preloadFrames = async (manifests) => {
+  const tasks = [];
+  Object.entries(manifests).forEach(([variant, manifest]) => {
+    for (let frame = 0; frame < manifest.frames; frame += 1) {
+      const key = frameCacheKey(variant, frame);
+      tasks.push(
+        loadFrameImage(variant, frame).then((image) => {
+          frameCache.set(key, image);
+        })
+      );
+    }
+  });
+  await Promise.all(tasks);
+};
+
+const renderAll = (canvases, manifests, frame) => {
   for (const canvas of canvases) {
     const variant = canvas.dataset.variant;
     const manifest = manifests[variant];
-    const imageKey = `${variant}:${frame}`;
-    if (!cache[imageKey]) {
-      cache[imageKey] = await loadFrameImage(variant, frame);
-    }
-    const image = cache[imageKey];
+    if (!manifest) continue;
+    const image = frameCache.get(frameCacheKey(variant, frame));
+    if (!image) throw new Error(`Missing frame in cache: ${variant}#${frame}`);
     const ctx = canvas.getContext('2d');
     const size = Number(canvas.dataset.size || 0);
     const dpr = window.devicePixelRatio || 1;
@@ -125,7 +149,7 @@ const renderAll = async (canvases, manifests, frame) => {
   }
 };
 
-let autoTimer;
+let autoRaf;
 let autoRunToken = 0;
 let currentFrame = 0;
 let totalFrames = 0;
@@ -148,12 +172,26 @@ const startAuto = (manifests) => {
   stopAuto();
   const ms = manifests[Object.keys(manifests)[0]].ms;
   const runToken = ++autoRunToken;
+  let lastTs = 0;
+  let accumulator = 0;
 
-  const tick = async () => {
+  const tick = (ts) => {
     if (runToken !== autoRunToken || totalFrames <= 0) return;
-    currentFrame = (currentFrame + 1) % totalFrames;
+    if (!lastTs) lastTs = ts;
+    accumulator += ts - lastTs;
+    lastTs = ts;
+    let changed = false;
+    while (accumulator >= ms) {
+      currentFrame = (currentFrame + 1) % totalFrames;
+      accumulator -= ms;
+      changed = true;
+    }
+    if (!changed) {
+      autoRaf = requestAnimationFrame(tick);
+      return;
+    }
     try {
-      await renderAll(cachedCanvases, manifests, currentFrame);
+      renderAll(cachedCanvases, manifests, currentFrame);
       updateReadout();
     } catch (error) {
       console.error('Failed to render frame', error);
@@ -163,34 +201,46 @@ const startAuto = (manifests) => {
     }
 
     if (runToken === autoRunToken) {
-      autoTimer = setTimeout(tick, ms);
+      autoRaf = requestAnimationFrame(tick);
     }
   };
 
-  autoTimer = setTimeout(tick, ms);
+  autoRaf = requestAnimationFrame(tick);
 };
 
 const stopAuto = () => {
   autoRunToken += 1;
-  if (autoTimer) {
-    clearTimeout(autoTimer);
-    autoTimer = undefined;
+  if (autoRaf) {
+    cancelAnimationFrame(autoRaf);
+    autoRaf = undefined;
   }
 };
 
-const stepFrame = async (direction) => {
+const stepFrame = (direction) => {
   stopAuto();
   const delta = direction === 'prev' ? -1 : 1;
   currentFrame = (currentFrame + delta + totalFrames) % totalFrames;
-  await renderAll(cachedCanvases, cachedManifests, currentFrame);
+  renderAll(cachedCanvases, cachedManifests, currentFrame);
   updateReadout();
 };
 
-const setFrameFromSlider = async (value) => {
+const setFrameFromSlider = (value) => {
   stopAuto();
   currentFrame = Math.min(Math.max(0, Number(value)), totalFrames - 1);
-  await renderAll(cachedCanvases, cachedManifests, currentFrame);
+  renderAll(cachedCanvases, cachedManifests, currentFrame);
   updateReadout();
+};
+
+const refreshPreview = async () => {
+  cachedManifests = await loadManifests();
+  totalFrames = cachedManifests[Object.keys(cachedManifests)[0]].frames;
+  frameCache.clear();
+  await preloadFrames(cachedManifests);
+  currentFrame = 0;
+  cachedCanvases = getCanvases();
+  renderAll(cachedCanvases, cachedManifests, currentFrame);
+  updateReadout();
+  startAuto(cachedManifests);
 };
 
 const buildLoader = async () => {
@@ -204,13 +254,8 @@ const buildLoader = async () => {
       throw new Error(payload.error || 'Build failed');
     }
     setBuildingState('idle');
-    cachedManifests = await loadManifests();
-    totalFrames = cachedManifests[Object.keys(cachedManifests)[0]].frames;
-    currentFrame = 0;
-    cachedCanvases = getCanvases();
-    await renderAll(cachedCanvases, cachedManifests, currentFrame);
-    updateReadout();
-    startAuto(cachedManifests);
+    activeAssetVersion = Date.now();
+    await refreshPreview();
   } catch (error) {
     setBuildingState('error', error?.message);
     console.error('Failed to build loader', error);
@@ -392,12 +437,7 @@ const exportGif = async () => {
 const boot = async () => {
   setIconSources(iconSvgUrl);
   try {
-    cachedManifests = await loadManifests();
-    totalFrames = cachedManifests[Object.keys(cachedManifests)[0]].frames;
-    cachedCanvases = getCanvases();
-    await renderAll(cachedCanvases, cachedManifests, currentFrame);
-    updateReadout();
-    startAuto(cachedManifests);
+    await refreshPreview();
   } catch (error) {
     setBuildingState('error', error?.message || 'Failed to load loader frames');
     console.error('Failed to initialize preview', error);
