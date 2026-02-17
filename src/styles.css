@@ -130,8 +130,20 @@ body {
   --cell-grow: 2.4;
 }
 
+.group-divider {
+  flex: 0 0 auto;
+  align-self: stretch;
+  width: 1px;
+  margin: 0 4px;
+  background: rgba(26, 26, 26, 0.18);
+}
+
 .panel.dark .cell {
   background: rgba(255, 255, 255, 0.06);
+}
+
+.panel.dark .group-divider {
+  background: rgba(255, 255, 255, 0.26);
 }
 
 .loader {
