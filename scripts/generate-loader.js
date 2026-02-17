@@ -9,7 +9,7 @@ const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, '..');
 
 const defaults = {
-  grid: 32,
+  grid: 24,
   frames: 16,
   standardMs: 1000 / 42,
   borderedMs: 48,

@@ -42,7 +42,7 @@ body {
 
 .layout {
   display: grid;
-  grid-template-columns: minmax(220px, 260px) 1fr;
+  grid-template-columns: minmax(180px, 220px) 1fr;
   gap: 18px;
   align-items: start;
 }
@@ -90,7 +90,7 @@ body {
 .icon-row {
   display: flex;
   flex-wrap: nowrap;
-  gap: 12px;
+  gap: 8px;
   align-items: flex-end;
   overflow-x: auto;
   overflow-y: hidden;
@@ -112,14 +112,17 @@ body {
 
 .cell[data-size="16"] {
   --cell-grow: 1;
+  padding: 6px 4px;
 }
 
 .cell[data-size="24"] {
   --cell-grow: 1.1;
+  padding: 7px 5px;
 }
 
 .cell[data-size="44"] {
   --cell-grow: 1.25;
+  padding: 8px 6px;
 }
 
 .cell[data-size="128"] {
@@ -134,7 +137,7 @@ body {
   flex: 0 0 auto;
   align-self: stretch;
   width: 1px;
-  margin: 0 4px;
+  margin: 0 2px;
   background: rgba(26, 26, 26, 0.18);
 }
 
@@ -301,7 +304,7 @@ canvas.loader {
   color: rgba(26, 26, 26, 0.6);
 }
 
-@media (max-width: 900px) {
+@media (max-width: 1240px) {
   .layout {
     grid-template-columns: 1fr;
   }
