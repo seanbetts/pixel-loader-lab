@@ -13,19 +13,37 @@
 
       <div class="layout">
         <section class="panel light controls">
-          <div class="panel-title">Controls</div>
-          <div class="controls-actions">
-            <button class="button" id="resetButton" type="button">Reset</button>
-            <button class="button ghost" id="prevButton" type="button">Prev</button>
-            <button class="button ghost" id="stepButton" type="button">Next</button>
+          <div class="panel-header">
+            <div class="panel-title">Controls</div>
             <div class="status" id="buildStatus" aria-live="polite">Idle</div>
           </div>
-          <div class="control">
-            <label class="control-label" for="frameSlider">Frame</label>
-            <input id="frameSlider" class="control-input" type="range" min="0" max="0" value="0" />
-            <div class="frame-readout" id="frameReadout">Frame 1 / 1</div>
+
+          <div class="control-group">
+            <div class="control-group-header">
+              <div class="control-group-title">Standard</div>
+              <div class="frame-readout" id="standardFrameReadout">Frame 1 / 1</div>
+            </div>
+            <input id="standardFrameSlider" class="control-input" type="range" min="0" max="0" value="0" />
+            <div class="controls-actions controls-actions-compact">
+              <button class="button ghost" id="standardPrevButton" data-group-control="standard" type="button">Prev</button>
+              <button class="button ghost" id="standardNextButton" data-group-control="standard" type="button">Next</button>
+            </div>
           </div>
-          <div class="control">
+
+          <div class="control-group">
+            <div class="control-group-header">
+              <div class="control-group-title">Bordered</div>
+              <div class="frame-readout" id="borderedFrameReadout">Frame 1 / 1</div>
+            </div>
+            <input id="borderedFrameSlider" class="control-input" type="range" min="0" max="0" value="0" />
+            <div class="controls-actions controls-actions-compact">
+              <button class="button ghost" id="borderedPrevButton" data-group-control="bordered" type="button">Prev</button>
+              <button class="button ghost" id="borderedNextButton" data-group-control="bordered" type="button">Next</button>
+            </div>
+          </div>
+
+          <div class="controls-footer">
+            <button class="button" id="resetButton" type="button">Reset</button>
             <button class="button ghost" id="exportButton" type="button">Export GIF</button>
           </div>
         </section>

@@ -181,9 +181,38 @@ canvas.loader {
   gap: 16px;
 }
 
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
 .control {
   display: flex;
   flex-direction: column;
+  gap: 8px;
+}
+
+.control-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(26, 26, 26, 0.1);
+}
+
+.control-group-title {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(26, 26, 26, 0.6);
+}
+
+.control-group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 8px;
 }
 
@@ -209,6 +238,23 @@ canvas.loader {
   justify-content: space-between;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.controls-actions-compact {
+  justify-content: space-between;
+}
+
+.controls-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px solid rgba(26, 26, 26, 0.12);
+}
+
+.controls-footer #exportButton {
+  margin-left: auto;
 }
 
 .button {

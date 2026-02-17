@@ -5,6 +5,23 @@ const DEFAULTS = {
   transition: 10,
 };
 
+const GROUPS = {
+  standard: {
+    variantPrefix: 'solid-',
+    prevButtonId: 'standardPrevButton',
+    nextButtonId: 'standardNextButton',
+    sliderId: 'standardFrameSlider',
+    readoutId: 'standardFrameReadout',
+  },
+  bordered: {
+    variantPrefix: 'border-',
+    prevButtonId: 'borderedPrevButton',
+    nextButtonId: 'borderedNextButton',
+    sliderId: 'borderedFrameSlider',
+    readoutId: 'borderedFrameReadout',
+  },
+};
+
 let activeAssetVersion = Date.now();
 
 const withCacheBust = (url) => {
@@ -28,9 +45,7 @@ const setIconSources = (url) => {
 
 const setBuildingState = (state, message) => {
   const statusEl = document.querySelector('#buildStatus');
-  const controls = document.querySelectorAll(
-    '.control-input, #resetButton, #stepButton, #prevButton, #exportButton'
-  );
+  const controls = document.querySelectorAll('.control-input, #resetButton, #exportButton, [data-group-control]');
   controls.forEach((el) => {
     el.disabled = state === 'building';
   });
@@ -126,10 +141,25 @@ const preloadFrames = async (manifests) => {
   await Promise.all(tasks);
 };
 
-const renderAll = (canvases, manifests, frame) => {
+const resolveGroup = (variant) => (variant.startsWith(GROUPS.standard.variantPrefix) ? 'standard' : 'bordered');
+
+const playbackState = {
+  standard: { currentFrame: 0, totalFrames: 0, ms: 40, autoRaf: undefined, autoRunToken: 0 },
+  bordered: { currentFrame: 0, totalFrames: 0, ms: 40, autoRaf: undefined, autoRunToken: 0 },
+};
+
+let cachedManifests = null;
+let cachedCanvasesByGroup = {
+  standard: [],
+  bordered: [],
+};
+
+const renderGroup = (groupKey, frame) => {
+  const canvases = cachedCanvasesByGroup[groupKey];
+  if (!canvases || canvases.length === 0) return;
   for (const canvas of canvases) {
     const variant = canvas.dataset.variant;
-    const manifest = manifests[variant];
+    const manifest = cachedManifests[variant];
     if (!manifest) continue;
     const image = frameCache.get(frameCacheKey(variant, frame));
     if (!image) throw new Error(`Missing frame in cache: ${variant}#${frame}`);
@@ -149,98 +179,122 @@ const renderAll = (canvases, manifests, frame) => {
   }
 };
 
-let autoRaf;
-let autoRunToken = 0;
-let currentFrame = 0;
-let totalFrames = 0;
-let cachedManifests = null;
-let cachedCanvases = null;
-
-const updateReadout = () => {
-  const readout = document.querySelector('#frameReadout');
-  const slider = document.querySelector('#frameSlider');
+const updateReadout = (groupKey) => {
+  const group = GROUPS[groupKey];
+  const state = playbackState[groupKey];
+  const readout = document.querySelector(`#${group.readoutId}`);
+  const slider = document.querySelector(`#${group.sliderId}`);
   if (slider) {
-    slider.max = String(Math.max(0, totalFrames - 1));
-    slider.value = String(currentFrame);
+    slider.max = String(Math.max(0, state.totalFrames - 1));
+    slider.value = String(state.currentFrame);
   }
   if (readout) {
-    readout.textContent = `Frame ${currentFrame + 1} / ${Math.max(1, totalFrames)}`;
+    readout.textContent = `Frame ${state.currentFrame + 1} / ${Math.max(1, state.totalFrames)}`;
   }
 };
 
-const startAuto = (manifests) => {
-  stopAuto();
-  const ms = manifests[Object.keys(manifests)[0]].ms;
-  const runToken = ++autoRunToken;
+const startAuto = (groupKey) => {
+  stopAuto(groupKey);
+  const state = playbackState[groupKey];
+  const runToken = ++state.autoRunToken;
   let lastTs = 0;
   let accumulator = 0;
 
   const tick = (ts) => {
-    if (runToken !== autoRunToken || totalFrames <= 0) return;
+    if (runToken !== state.autoRunToken || state.totalFrames <= 0) return;
     if (!lastTs) lastTs = ts;
     accumulator += ts - lastTs;
     lastTs = ts;
     let changed = false;
-    while (accumulator >= ms) {
-      currentFrame = (currentFrame + 1) % totalFrames;
-      accumulator -= ms;
+    while (accumulator >= state.ms) {
+      state.currentFrame = (state.currentFrame + 1) % state.totalFrames;
+      accumulator -= state.ms;
       changed = true;
     }
     if (!changed) {
-      autoRaf = requestAnimationFrame(tick);
+      state.autoRaf = requestAnimationFrame(tick);
       return;
     }
     try {
-      renderAll(cachedCanvases, manifests, currentFrame);
-      updateReadout();
+      renderGroup(groupKey, state.currentFrame);
+      updateReadout(groupKey);
     } catch (error) {
       console.error('Failed to render frame', error);
-      stopAuto();
+      stopAuto(groupKey);
       setBuildingState('error', 'Render failed');
       return;
     }
 
-    if (runToken === autoRunToken) {
-      autoRaf = requestAnimationFrame(tick);
+    if (runToken === state.autoRunToken) {
+      state.autoRaf = requestAnimationFrame(tick);
     }
   };
 
-  autoRaf = requestAnimationFrame(tick);
+  state.autoRaf = requestAnimationFrame(tick);
 };
 
-const stopAuto = () => {
-  autoRunToken += 1;
-  if (autoRaf) {
-    cancelAnimationFrame(autoRaf);
-    autoRaf = undefined;
+const stopAuto = (groupKey) => {
+  const state = playbackState[groupKey];
+  state.autoRunToken += 1;
+  if (state.autoRaf) {
+    cancelAnimationFrame(state.autoRaf);
+    state.autoRaf = undefined;
   }
 };
 
-const stepFrame = (direction) => {
-  stopAuto();
-  const delta = direction === 'prev' ? -1 : 1;
-  currentFrame = (currentFrame + delta + totalFrames) % totalFrames;
-  renderAll(cachedCanvases, cachedManifests, currentFrame);
-  updateReadout();
+const stopAllAuto = () => {
+  stopAuto('standard');
+  stopAuto('bordered');
 };
 
-const setFrameFromSlider = (value) => {
-  stopAuto();
-  currentFrame = Math.min(Math.max(0, Number(value)), totalFrames - 1);
-  renderAll(cachedCanvases, cachedManifests, currentFrame);
-  updateReadout();
+const stepFrame = (groupKey, direction) => {
+  const state = playbackState[groupKey];
+  if (state.totalFrames <= 0) return;
+  stopAuto(groupKey);
+  const delta = direction === 'prev' ? -1 : 1;
+  state.currentFrame = (state.currentFrame + delta + state.totalFrames) % state.totalFrames;
+  renderGroup(groupKey, state.currentFrame);
+  updateReadout(groupKey);
+};
+
+const setFrameFromSlider = (groupKey, value) => {
+  const state = playbackState[groupKey];
+  if (state.totalFrames <= 0) return;
+  stopAuto(groupKey);
+  state.currentFrame = Math.min(Math.max(0, Number(value)), state.totalFrames - 1);
+  renderGroup(groupKey, state.currentFrame);
+  updateReadout(groupKey);
 };
 
 const refreshPreview = async () => {
+  stopAllAuto();
   cachedManifests = await loadManifests();
-  totalFrames = cachedManifests[Object.keys(cachedManifests)[0]].frames;
   frameCache.clear();
   await preloadFrames(cachedManifests);
-  currentFrame = 0;
-  cachedCanvases = getCanvases();
-  renderAll(cachedCanvases, cachedManifests, currentFrame);
-  updateReadout();
-  startAuto(cachedManifests);
+  const allCanvases = getCanvases();
+  cachedCanvasesByGroup = {
+    standard: [],
+    bordered: [],
+  };
+  allCanvases.forEach((canvas) => {
+    const groupKey = resolveGroup(canvas.dataset.variant);
+    cachedCanvasesByGroup[groupKey].push(canvas);
+  });
+
+  Object.keys(GROUPS).forEach((groupKey) => {
+    const group = GROUPS[groupKey];
+    const variant = Object.keys(cachedManifests).find((name) => name.startsWith(group.variantPrefix));
+    const manifest = variant ? cachedManifests[variant] : null;
+    const state = playbackState[groupKey];
+    state.totalFrames = manifest?.frames || 0;
+    state.ms = manifest?.ms || 40;
+    state.currentFrame = 0;
+    if (state.totalFrames > 0) {
+      renderGroup(groupKey, state.currentFrame);
+      startAuto(groupKey);
+    }
+    updateReadout(groupKey);
+  });
 };
 
 const buildLoader = async () => {
@@ -444,22 +498,24 @@ const boot = async () => {
     return;
   }
 
-  const stepButton = document.querySelector('#stepButton');
-  if (stepButton) {
-    stepButton.addEventListener('click', () => stepFrame('next'));
-  }
+  Object.entries(GROUPS).forEach(([groupKey, group]) => {
+    const nextButton = document.querySelector(`#${group.nextButtonId}`);
+    if (nextButton) {
+      nextButton.addEventListener('click', () => stepFrame(groupKey, 'next'));
+    }
 
-  const prevButton = document.querySelector('#prevButton');
-  if (prevButton) {
-    prevButton.addEventListener('click', () => stepFrame('prev'));
-  }
+    const prevButton = document.querySelector(`#${group.prevButtonId}`);
+    if (prevButton) {
+      prevButton.addEventListener('click', () => stepFrame(groupKey, 'prev'));
+    }
 
-  const slider = document.querySelector('#frameSlider');
-  if (slider) {
-    slider.addEventListener('input', (event) => {
-      setFrameFromSlider(event.target.value);
-    });
-  }
+    const slider = document.querySelector(`#${group.sliderId}`);
+    if (slider) {
+      slider.addEventListener('input', (event) => {
+        setFrameFromSlider(groupKey, event.target.value);
+      });
+    }
+  });
 
   const exportButton = document.querySelector('#exportButton');
   if (exportButton) {
